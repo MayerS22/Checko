@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-
 import '../models/todo.dart';
 import '../models/todo_list.dart';
 import '../database/database_helper.dart';
+import '../theme/app_colors.dart';
 
 enum _TodoFilter { all, active, done }
 
@@ -107,7 +107,7 @@ class _TodoScreenState extends State<TodoScreen> {
     final visibleTodos = _visibleTodos;
 
     return Scaffold(
-      backgroundColor: const Color(0xff0e0f1f),
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           Container(
@@ -117,9 +117,10 @@ class _TodoScreenState extends State<TodoScreen> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.deepPurple.shade400,
-                  Colors.purple.shade500,
-                  Colors.pink.shade400,
+                  AppColors.background,
+                  AppColors.accent.withValues(alpha: 0.14),
+                  AppColors.accentAlt.withValues(alpha: 0.14),
+                  AppColors.panel,
                 ],
               ),
             ),
@@ -132,7 +133,7 @@ class _TodoScreenState extends State<TodoScreen> {
               height: 180,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.08),
+                color: AppColors.accent.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -144,7 +145,7 @@ class _TodoScreenState extends State<TodoScreen> {
               height: 120,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.05),
+                color: AppColors.accentAlt.withValues(alpha: 0.1),
               ),
             ),
           ),
@@ -156,88 +157,103 @@ class _TodoScreenState extends State<TodoScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          IconButton(
-                            splashRadius: 24,
-                            onPressed: () => Navigator.pop(context),
-                            icon: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.12),
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.12),
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.task_alt,
+                          const Text(
+                            'Welcome Mayooor',
+                            style: TextStyle(
                               color: Colors.white,
-                              size: 28,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          const SizedBox(height: 10),
+                          Row(
                             children: [
-                              Text(
-                                'Checko',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 14,
-                                  letterSpacing: 0.3,
+                              IconButton(
+                                splashRadius: 24,
+                                onPressed: () => Navigator.pop(context),
+                                icon: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceElevated,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: AppColors.outline,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.arrow_back,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
                                 ),
                               ),
-                              Text(
-                                widget.list.name,
-                                style: const TextStyle(
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceElevated,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: AppColors.outline,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.task_alt,
                                   color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.1,
+                                  size: 28,
                                 ),
                               ),
-                            ],
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            splashRadius: 24,
-                            onPressed: _focusNode.requestFocus,
-                            icon: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.12),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 6),
+                              const SizedBox(width: 12),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Checko',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.9),
+                                      fontSize: 14,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
+                                  Text(
+                                    widget.list.name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 1.1,
+                                    ),
                                   ),
                                 ],
                               ),
-                              child: Icon(
-                                Icons.add,
-                                color: Colors.deepPurple.shade500,
+                              const Spacer(),
+                              IconButton(
+                                splashRadius: 24,
+                                onPressed: _focusNode.requestFocus,
+                                icon: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accent,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.25),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -245,14 +261,14 @@ class _TodoScreenState extends State<TodoScreen> {
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          color: AppColors.surfaceElevated,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.18),
+                            color: AppColors.outline,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.12),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 16,
                               offset: const Offset(0, 8),
                             ),
@@ -270,9 +286,9 @@ class _TodoScreenState extends State<TodoScreen> {
                                     value: totalCount == 0 ? 0 : completedCount / totalCount,
                                     strokeWidth: 8,
                                     valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.greenAccent.shade200,
+                                      AppColors.success,
                                     ),
-                                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                                    backgroundColor: AppColors.surface,
                                   ),
                                 ),
                                 Column(
@@ -320,7 +336,7 @@ class _TodoScreenState extends State<TodoScreen> {
                                         ? 'Add your first task to get momentum.'
                                         : 'Stay consistent and clear the deck.',
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.85),
+                                      color: AppColors.textMuted,
                                       fontSize: 13,
                                       height: 1.3,
                                     ),
@@ -332,9 +348,9 @@ class _TodoScreenState extends State<TodoScreen> {
                                         borderRadius: BorderRadius.circular(12),
                                         child: LinearProgressIndicator(
                                           value: completedCount / totalCount,
-                                          backgroundColor: Colors.white.withValues(alpha: 0.18),
+                                          backgroundColor: AppColors.surface,
                                           valueColor: AlwaysStoppedAnimation<Color>(
-                                            Colors.greenAccent.shade200,
+                                            AppColors.success,
                                           ),
                                           minHeight: 8,
                                         ),
@@ -376,19 +392,19 @@ class _TodoScreenState extends State<TodoScreen> {
                                   ),
                                   selected: _filter == filter,
                                   onSelected: (_) => _setFilter(filter),
-                                  selectedColor: Colors.white,
+                                  selectedColor: AppColors.accent,
                                   labelStyle: TextStyle(
                                     color: _filter == filter
-                                        ? Colors.deepPurple.shade600
-                                        : Colors.white,
+                                        ? Colors.white
+                                        : AppColors.textMuted,
                                     fontWeight: FontWeight.w600,
                                   ),
-                                  backgroundColor: Colors.white.withValues(alpha: 0.14),
+                                  backgroundColor: AppColors.surface,
                                   shape: StadiumBorder(
                                     side: BorderSide(
                                       color: _filter == filter
-                                          ? Colors.white
-                                          : Colors.white.withValues(alpha: 0.2),
+                                          ? AppColors.accent
+                                          : AppColors.outline,
                                     ),
                                   ),
                                   elevation: 0,
@@ -404,7 +420,7 @@ class _TodoScreenState extends State<TodoScreen> {
                   child: Container(
                     margin: const EdgeInsets.only(top: 8),
                     decoration: const BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.panel,
                       borderRadius: BorderRadius.only(
                         topLeft: Radius.circular(28),
                         topRight: Radius.circular(28),
@@ -417,23 +433,25 @@ class _TodoScreenState extends State<TodoScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 18),
                           child: Container(
                             decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
+                              color: AppColors.surface,
                               borderRadius: BorderRadius.circular(18),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.04),
-                                  blurRadius: 14,
+                                  color: Colors.black.withValues(alpha: 0.18),
+                                  blurRadius: 16,
                                   offset: const Offset(0, 6),
                                 ),
                               ],
+                              border: Border.all(color: AppColors.outline),
                             ),
                             child: TextField(
                               controller: _textController,
                               focusNode: _focusNode,
+                              style: const TextStyle(color: Colors.white),
                               decoration: InputDecoration(
                                 hintText: 'Add a task with intent...',
                                 hintStyle: TextStyle(
-                                  color: Colors.grey.shade500,
+                                  color: AppColors.textMuted,
                                   fontSize: 15,
                                 ),
                                 border: InputBorder.none,
@@ -443,15 +461,15 @@ class _TodoScreenState extends State<TodoScreen> {
                                 ),
                                 prefixIcon: Icon(
                                   Icons.edit_outlined,
-                                  color: Colors.deepPurple.shade300,
+                                  color: AppColors.textMuted,
                                 ),
                                 suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
                                 suffixIcon: Padding(
                                   padding: const EdgeInsets.only(right: 10),
                                   child: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
-                                      elevation: 0,
-                                      backgroundColor: Colors.deepPurple.shade500,
+                                      elevation: 4,
+                                      backgroundColor: AppColors.accent,
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(14),
                                       ),
@@ -495,7 +513,7 @@ class _TodoScreenState extends State<TodoScreen> {
                                         Icon(
                                           Icons.incomplete_circle_outlined,
                                           size: 74,
-                                          color: Colors.grey.shade300,
+                                          color: AppColors.textMuted.withValues(alpha: 0.6),
                                         ),
                                         const SizedBox(height: 14),
                                         Text(
@@ -504,7 +522,7 @@ class _TodoScreenState extends State<TodoScreen> {
                                               : 'No tasks to show',
                                           style: TextStyle(
                                             fontSize: 18,
-                                            color: Colors.grey.shade500,
+                                            color: Colors.white,
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -515,7 +533,7 @@ class _TodoScreenState extends State<TodoScreen> {
                                               : 'Add a task or change the filter.',
                                           style: TextStyle(
                                             fontSize: 14,
-                                            color: Colors.grey.shade500,
+                                            color: AppColors.textMuted,
                                           ),
                                         ),
                                       ],
@@ -574,8 +592,8 @@ class _TodoItem extends StatelessWidget {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              Colors.red.shade300,
-              Colors.red.shade500,
+              AppColors.danger.withValues(alpha: 0.7),
+              AppColors.danger,
             ],
           ),
           borderRadius: BorderRadius.circular(18),
@@ -597,23 +615,23 @@ class _TodoItem extends StatelessWidget {
           gradient: LinearGradient(
             colors: todo.isCompleted
                 ? [
-                    Colors.greenAccent.shade100.withValues(alpha: 0.24),
-                    Colors.greenAccent.shade100.withValues(alpha: 0.14),
+                    AppColors.success.withValues(alpha: 0.24),
+                    AppColors.success.withValues(alpha: 0.12),
                   ]
                 : [
-                    Colors.white,
-                    Colors.white,
+                    AppColors.surface,
+                    AppColors.surfaceElevated,
                   ],
           ),
           border: Border.all(
             color: todo.isCompleted
-                ? Colors.greenAccent.shade100
-                : Colors.grey.shade200,
+                ? AppColors.success
+                : AppColors.outline,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 12,
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 14,
               offset: const Offset(0, 6),
             ),
           ],
@@ -635,12 +653,12 @@ class _TodoItem extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: todo.isCompleted
-                            ? Colors.greenAccent.shade400
-                            : Colors.deepPurple.shade200,
+                            ? AppColors.success
+                            : AppColors.accent,
                         width: 2,
                       ),
                       color: todo.isCompleted
-                          ? Colors.greenAccent.shade400
+                          ? AppColors.success
                           : Colors.transparent,
                     ),
                     child: todo.isCompleted
@@ -662,8 +680,8 @@ class _TodoItem extends StatelessWidget {
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: todo.isCompleted
-                                ? Colors.grey.shade500
-                                : Colors.grey.shade800,
+                                ? AppColors.textMuted
+                                : Colors.white,
                             decoration: todo.isCompleted
                                 ? TextDecoration.lineThrough
                                 : null,
@@ -677,8 +695,8 @@ class _TodoItem extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             color: todo.isCompleted
-                                ? Colors.green.shade600
-                                : Colors.grey.shade500,
+                                ? AppColors.success
+                                : AppColors.textMuted,
                           ),
                         ),
                       ],
@@ -688,7 +706,7 @@ class _TodoItem extends StatelessWidget {
                     splashRadius: 22,
                     icon: Icon(
                       Icons.delete_outline,
-                      color: Colors.red.shade300,
+                      color: AppColors.danger,
                       size: 22,
                     ),
                     onPressed: onDelete,
@@ -702,4 +720,3 @@ class _TodoItem extends StatelessWidget {
     );
   }
 }
-

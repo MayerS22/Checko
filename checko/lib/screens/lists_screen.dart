@@ -13,6 +13,8 @@ class ListsScreen extends StatefulWidget {
 }
 
 class _ListsScreenState extends State<ListsScreen> {
+  static const String _defaultListId = 'default-my-tasks';
+
   final List<TodoList> _lists = [];
   final List<Todo> _allTodos = [];
   final TextEditingController _searchController = TextEditingController();
@@ -49,7 +51,7 @@ class _ListsScreenState extends State<ListsScreen> {
 
   Future<void> _createDefaultList() async {
     final defaultList = TodoList(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: _defaultListId,
       name: 'My Tasks',
       description: 'Default task list',
       color: AppColors.accent.toARGB32(),
@@ -61,14 +63,27 @@ class _ListsScreenState extends State<ListsScreen> {
     });
   }
 
+  bool _isDefaultList(TodoList list) {
+    // Check for new constant ID
+    if (list.id == _defaultListId) return true;
+
+    // Check for legacy default list (created before constant ID was introduced)
+    // It's the first list with the default name and description
+    if (list.name == 'My Tasks' && list.description == 'Default task list') {
+      // Make sure no other list has the constant default ID
+      final hasNewDefault = _lists.any((l) => l.id == _defaultListId);
+      if (!hasNewDefault) return true;
+    }
+
+    return false;
+  }
+
   List<Todo> _getTodosForList(String listId) {
     return _allTodos.where((todo) => todo.listId == listId).toList();
   }
 
   int _getCompletedCount(String listId) {
-    return _getTodosForList(listId)
-        .where((todo) => todo.isCompleted)
-        .length;
+    return _getTodosForList(listId).where((todo) => todo.isCompleted).length;
   }
 
   double _getProgressPercentage(String listId) {
@@ -81,8 +96,10 @@ class _ListsScreenState extends State<ListsScreen> {
   List<Todo> _getSearchResults() {
     if (_searchQuery.isEmpty) return [];
     return _allTodos
-        .where((todo) =>
-            todo.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .where(
+          (todo) =>
+              todo.title.toLowerCase().contains(_searchQuery.toLowerCase()),
+        )
         .toList();
   }
 
@@ -112,10 +129,7 @@ class _ListsScreenState extends State<ListsScreen> {
           ),
           title: const Text(
             'Create New List',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -169,7 +183,9 @@ class _ListsScreenState extends State<ListsScreen> {
                           color: Color(color),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isSelected ? Colors.white : Colors.transparent,
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.transparent,
                             width: 2.4,
                           ),
                           boxShadow: [
@@ -197,9 +213,7 @@ class _ListsScreenState extends State<ListsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textMuted,
-              ),
+              style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -209,7 +223,10 @@ class _ListsScreenState extends State<ListsScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
               ),
               onPressed: () {
                 if (nameController.text.trim().isNotEmpty) {
@@ -239,6 +256,204 @@ class _ListsScreenState extends State<ListsScreen> {
     }
   }
 
+  Future<void> _editList(TodoList list) async {
+    final nameController = TextEditingController(text: list.name);
+    final descController = TextEditingController(text: list.description ?? '');
+    int selectedColor = list.color;
+
+    final colors = [
+      0xFF9C27B0, // Purple
+      0xFFF44336, // Red
+      0xFF2196F3, // Blue
+      0xFF4CAF50, // Green
+      0xFFFF9800, // Orange
+      0xFFE91E63, // Pink
+      0xFF00BCD4, // Cyan
+      0xFFFF5722, // Deep Orange
+    ];
+
+    final result = await showDialog<TodoList>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.panel,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: const Text(
+            'Edit List',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'List Name',
+                    labelStyle: TextStyle(color: AppColors.textMuted),
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(
+                    labelText: 'Description (Optional)',
+                    labelStyle: TextStyle(color: AppColors.textMuted),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Choose Color',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: colors.map((color) {
+                    final isSelected = selectedColor == color;
+                    return GestureDetector(
+                      onTap: () {
+                        setDialogState(() {
+                          selectedColor = color;
+                        });
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Color(color),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.transparent,
+                            width: 2.4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 20,
+                              )
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              onPressed: () {
+                if (nameController.text.trim().isNotEmpty) {
+                  final updatedList = TodoList(
+                    id: list.id,
+                    name: nameController.text.trim(),
+                    description: descController.text.trim().isEmpty
+                        ? null
+                        : descController.text.trim(),
+                    color: selectedColor,
+                  );
+                  Navigator.pop(context, updatedList);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null) {
+      await DatabaseHelper.instance.updateTodoList(result);
+      setState(() {
+        final index = _lists.indexWhere((l) => l.id == result.id);
+        if (index != -1) {
+          _lists[index] = result;
+        }
+      });
+    }
+  }
+
+  Future<void> _confirmDeleteList(TodoList list) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.panel,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          'Delete List',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${list.name}"? All todos in this list will be deleted.',
+          style: const TextStyle(color: AppColors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteList(list.id);
+    }
+  }
+
   Future<void> _deleteList(String listId) async {
     await DatabaseHelper.instance.deleteTodoList(listId);
     setState(() {
@@ -258,11 +473,7 @@ class _ListsScreenState extends State<ListsScreen> {
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(
-          child: CircularProgressIndicator(
-            color: AppColors.accent,
-          ),
-        ),
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );
     }
 
@@ -315,58 +526,87 @@ class _ListsScreenState extends State<ListsScreen> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface.withValues(alpha: 0.7),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: AppColors.outline,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.35),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Welcome Mayooor',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surface.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(
+                                          color: AppColors.outline,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.35,
+                                            ),
+                                            blurRadius: 20,
+                                            offset: const Offset(0, 12),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.folder_special,
+                                        color: AppColors.accentAlt,
+                                        size: 28,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Checko',
+                                          style: TextStyle(
+                                            color: AppColors.textMuted
+                                                .withValues(alpha: 0.9),
+                                            fontSize: 14,
+                                            letterSpacing: 0.3,
+                                          ),
+                                        ),
+                                        const Text(
+                                          'My Lists',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 28,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.1,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                            child: const Icon(
-                              Icons.folder_special,
-                              color: AppColors.accentAlt,
-                              size: 28,
-                            ),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Checko',
-                                style: TextStyle(
-                                  color: AppColors.textMuted.withValues(alpha: 0.9),
-                                  fontSize: 14,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                              const Text(
-                                'My Lists',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.1,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
                           IconButton(
                             splashRadius: 24,
                             onPressed: _addList,
@@ -382,16 +622,15 @@ class _ListsScreenState extends State<ListsScreen> {
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: AppColors.accent.withValues(alpha: 0.5),
+                                    color: AppColors.accent.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     blurRadius: 16,
                                     offset: const Offset(0, 6),
                                   ),
                                 ],
                               ),
-                              child: Icon(
-                                Icons.add,
-                                color: Colors.white,
-                              ),
+                              child: Icon(Icons.add, color: Colors.white),
                             ),
                           ),
                         ],
@@ -401,9 +640,7 @@ class _ListsScreenState extends State<ListsScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.surface,
                           borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: AppColors.outline,
-                          ),
+                          border: Border.all(color: AppColors.outline),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withValues(alpha: 0.28),
@@ -520,7 +757,10 @@ class _ListsScreenState extends State<ListsScreen> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 4,
+                  ),
                   itemCount: results.length,
                   itemBuilder: (context, index) {
                     final todo = results[index];
@@ -585,7 +825,8 @@ class _ListsScreenState extends State<ListsScreen> {
                                 onTodosChanged: (todos) {
                                   setState(() {
                                     _allTodos.removeWhere(
-                                        (t) => t.listId == list.id);
+                                      (t) => t.listId == list.id,
+                                    );
                                     _allTodos.addAll(todos);
                                   });
                                 },
@@ -643,9 +884,12 @@ class _ListsScreenState extends State<ListsScreen> {
                     final screenWidth = MediaQuery.of(context).size.width;
                     final crossAxisCount = screenWidth > 600 ? 3 : 2;
                     final aspectRatio = screenWidth > 600 ? 0.75 : 0.82;
-                    
+
                     return GridView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 4,
+                      ),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
                         crossAxisSpacing: 14,
@@ -669,7 +913,9 @@ class _ListsScreenState extends State<ListsScreen> {
                                   todos: todos,
                                   onTodosChanged: (updatedTodos) {
                                     setState(() {
-                                      _allTodos.removeWhere((t) => t.listId == list.id);
+                                      _allTodos.removeWhere(
+                                        (t) => t.listId == list.id,
+                                      );
                                       _allTodos.addAll(updatedTodos);
                                     });
                                   },
@@ -677,34 +923,59 @@ class _ListsScreenState extends State<ListsScreen> {
                               ),
                             );
                           },
-                          onLongPress: () {
-                            if (_lists.length > 1) {
-                              showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Delete List'),
-                                  content: Text(
-                                      'Are you sure you want to delete "${list.name}"? All todos in this list will be deleted.'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      child: const Text('Cancel'),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
+                          onLongPress: _isDefaultList(list)
+                              ? null
+                              : () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    backgroundColor: AppColors.panel,
+                                    shape: const RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.vertical(
+                                        top: Radius.circular(20),
                                       ),
-                                      onPressed: () {
-                                        _deleteList(list.id);
-                                        Navigator.pop(context);
-                                      },
-                                      child: const Text('Delete'),
                                     ),
-                                  ],
-                                ),
-                              );
-                            }
-                          },
+                                    builder: (context) => Container(
+                                      padding: const EdgeInsets.all(20),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          ListTile(
+                                            leading: const Icon(
+                                              Icons.edit,
+                                              color: AppColors.accent,
+                                            ),
+                                            title: const Text(
+                                              'Edit List',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              _editList(list);
+                                            },
+                                          ),
+                                          ListTile(
+                                            leading: const Icon(
+                                              Icons.delete,
+                                              color: AppColors.danger,
+                                            ),
+                                            title: const Text(
+                                              'Delete List',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                            onTap: () {
+                                              Navigator.pop(context);
+                                              _confirmDeleteList(list);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
                           child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
@@ -718,7 +989,9 @@ class _ListsScreenState extends State<ListsScreen> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Color(list.color).withValues(alpha: 0.3),
+                                  color: Color(
+                                    list.color,
+                                  ).withValues(alpha: 0.3),
                                   blurRadius: 12,
                                   offset: const Offset(0, 6),
                                 ),
@@ -735,8 +1008,12 @@ class _ListsScreenState extends State<ListsScreen> {
                                       Container(
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.3),
-                                          borderRadius: BorderRadius.circular(12),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.3,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                         ),
                                         child: const Icon(
                                           Icons.folder,
@@ -745,10 +1022,20 @@ class _ListsScreenState extends State<ListsScreen> {
                                         ),
                                       ),
                                       const Spacer(),
-                                      if (_lists.length > 1)
+                                      if (_isDefaultList(list))
+                                        Icon(
+                                          Icons.lock_outline,
+                                          color: Colors.white.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                          size: 16,
+                                        )
+                                      else
                                         Icon(
                                           Icons.more_vert,
-                                          color: Colors.white.withValues(alpha: 0.7),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.7,
+                                          ),
                                           size: 18,
                                         ),
                                     ],
@@ -772,7 +1059,9 @@ class _ListsScreenState extends State<ListsScreen> {
                                       child: Text(
                                         list.description!,
                                         style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.9),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.9,
+                                          ),
                                           fontSize: 11,
                                         ),
                                         maxLines: 2,
@@ -787,7 +1076,9 @@ class _ListsScreenState extends State<ListsScreen> {
                                       vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.25),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.25,
+                                      ),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Row(
@@ -816,10 +1107,12 @@ class _ListsScreenState extends State<ListsScreen> {
                                   const SizedBox(height: 10),
                                   Column(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
                                         children: [
                                           Flexible(
                                             child: Text(
@@ -827,7 +1120,9 @@ class _ListsScreenState extends State<ListsScreen> {
                                                   ? 'No tasks'
                                                   : '$completedCount of ${todos.length} done',
                                               style: TextStyle(
-                                                color: Colors.white.withValues(alpha: 0.95),
+                                                color: Colors.white.withValues(
+                                                  alpha: 0.95,
+                                                ),
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w600,
                                               ),
@@ -837,7 +1132,9 @@ class _ListsScreenState extends State<ListsScreen> {
                                           Text(
                                             '${(progress * 100).round()}%',
                                             style: TextStyle(
-                                              color: Colors.white.withValues(alpha: 0.95),
+                                              color: Colors.white.withValues(
+                                                alpha: 0.95,
+                                              ),
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
                                             ),
@@ -849,10 +1146,12 @@ class _ListsScreenState extends State<ListsScreen> {
                                         borderRadius: BorderRadius.circular(8),
                                         child: LinearProgressIndicator(
                                           value: progress,
-                                          backgroundColor: Colors.white.withValues(alpha: 0.3),
-                                          valueColor: const AlwaysStoppedAnimation<Color>(
-                                            Colors.white,
-                                          ),
+                                          backgroundColor: Colors.white
+                                              .withValues(alpha: 0.3),
+                                          valueColor:
+                                              const AlwaysStoppedAnimation<
+                                                Color
+                                              >(Colors.white),
                                           minHeight: 5,
                                         ),
                                       ),
@@ -860,8 +1159,8 @@ class _ListsScreenState extends State<ListsScreen> {
                                   ),
                                 ],
                               ),
-                        ),
-                      ),
+                            ),
+                          ),
                         );
                       },
                     );

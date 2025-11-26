@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/lists_screen.dart';
+import 'screens/home_screen.dart';
 import 'theme/app_colors.dart';
 
 void main() {
@@ -43,7 +43,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const ListsScreen(),
+      home: const HomeScreen(),
     );
   }
 }
