@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/todo.dart';
 import '../models/todo_list.dart';
-import '../database/database_helper.dart';
+import '../database/firestore_service.dart';
+import '../providers/user_provider.dart';
 import 'todo_screen.dart';
 import '../theme/app_colors.dart';
 
@@ -13,7 +15,12 @@ class ListsScreen extends StatefulWidget {
 }
 
 class _ListsScreenState extends State<ListsScreen> {
-  static const String _defaultListId = 'default-my-tasks';
+  // Protected default list names that cannot be deleted
+  static const List<String> _protectedListNames = [
+    'My Day',
+    'Planned',
+    'Books',
+  ];
 
   final List<TodoList> _lists = [];
   final List<Todo> _allTodos = [];
@@ -32,8 +39,8 @@ class _ListsScreenState extends State<ListsScreen> {
       _isLoading = true;
     });
 
-    final lists = await DatabaseHelper.instance.readAllTodoLists();
-    final todos = await DatabaseHelper.instance.readAllTodos();
+    final lists = await FirestoreService.instance.readAllTodoLists();
+    final todos = await FirestoreService.instance.readAllTodos();
 
     setState(() {
       _lists.clear();
@@ -43,39 +50,290 @@ class _ListsScreenState extends State<ListsScreen> {
       _isLoading = false;
     });
 
-    // If no lists exist, create a default one
-    if (_lists.isEmpty) {
-      await _createDefaultList();
+    // Create default lists if they don't exist
+    await _createDefaultLists();
+  }
+
+  Future<void> _createDefaultLists() async {
+    final defaultListsData = [
+      {
+        'name': 'My Day',
+        'icon': Icons.wb_sunny,
+        'color': 0xFFFF9800,
+        'description': 'Tasks for today',
+      },
+      {
+        'name': 'Planned',
+        'icon': Icons.calendar_today,
+        'color': 0xFF2196F3,
+        'description': 'Scheduled tasks',
+      },
+      {
+        'name': 'Books',
+        'icon': Icons.menu_book,
+        'color': 0xFF9C27B0,
+        'description': 'Reading list',
+      },
+    ];
+
+    for (final listData in defaultListsData) {
+      final exists = _lists.any((l) => l.name == listData['name']);
+      if (!exists) {
+        final newList = TodoList(
+          id:
+              DateTime.now().millisecondsSinceEpoch.toString() +
+              listData['name'].toString().hashCode.toString(),
+          name: listData['name'] as String,
+          description: listData['description'] as String,
+          color: listData['color'] as int,
+        );
+        final created = await FirestoreService.instance.createTodoList(newList);
+        setState(() {
+          _lists.add(created);
+        });
+      }
     }
   }
 
-  Future<void> _createDefaultList() async {
-    final defaultList = TodoList(
-      id: _defaultListId,
-      name: 'My Tasks',
-      description: 'Default task list',
-      color: AppColors.accent.toARGB32(),
+  bool _isProtectedList(TodoList list) {
+    return _protectedListNames.contains(list.name);
+  }
+
+  Future<void> _quickAddTask() async {
+    if (_lists.isEmpty) return;
+
+    final titleController = TextEditingController();
+    TodoList? selectedList = _lists.first;
+    Priority selectedPriority = Priority.medium;
+    DateTime? selectedDate;
+
+    final result = await showDialog<Todo>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: context.isDarkMode
+              ? AppColors.panel
+              : AppColors.lightPanel,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+          title: Text(
+            'Add Task',
+            style: TextStyle(
+              color: context.textPrimaryColor,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: titleController,
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
+                    labelText: 'Task name',
+                    labelStyle: TextStyle(color: context.textMutedColor),
+                  ),
+                  autofocus: true,
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Add to list',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: context.textPrimaryColor,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: context.surfaceColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: context.outlineColor),
+                  ),
+                  child: DropdownButton<TodoList>(
+                    value: selectedList,
+                    isExpanded: true,
+                    dropdownColor: context.surfaceColor,
+                    underline: const SizedBox(),
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      color: context.textMutedColor,
+                    ),
+                    items: _lists.map((list) {
+                      return DropdownMenuItem<TodoList>(
+                        value: list,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: Color(list.color),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              list.name,
+                              style: TextStyle(color: context.textPrimaryColor),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedList = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Priority',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: context.textPrimaryColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: Priority.values.map((priority) {
+                    final isSelected = selectedPriority == priority;
+                    final color = priority == Priority.high
+                        ? AppColors.priorityHigh
+                        : priority == Priority.medium
+                        ? AppColors.priorityMedium
+                        : AppColors.priorityLow;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () =>
+                            setDialogState(() => selectedPriority = priority),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? color.withValues(alpha: 0.2)
+                                : context.surfaceColor,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isSelected ? color : context.outlineColor,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              priority == Priority.high
+                                  ? 'High'
+                                  : priority == Priority.medium
+                                  ? 'Med'
+                                  : 'Low',
+                              style: TextStyle(
+                                color: isSelected
+                                    ? color
+                                    : context.textMutedColor,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () async {
+                    final date = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (date != null) {
+                      setDialogState(() => selectedDate = date);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: context.surfaceColor,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: context.outlineColor),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          color: AppColors.accent,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          selectedDate != null
+                              ? '${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}'
+                              : 'Set due date (optional)',
+                          style: TextStyle(color: context.textPrimaryColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: context.textMutedColor,
+              ),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              onPressed: () {
+                if (titleController.text.trim().isNotEmpty &&
+                    selectedList != null) {
+                  final newTodo = Todo(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    listId: selectedList!.id,
+                    title: titleController.text.trim(),
+                    priority: selectedPriority,
+                    dueDate: selectedDate,
+                    order: _allTodos
+                        .where((t) => t.listId == selectedList!.id)
+                        .length,
+                  );
+                  Navigator.pop(context, newTodo);
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
     );
 
-    await DatabaseHelper.instance.createTodoList(defaultList);
-    setState(() {
-      _lists.add(defaultList);
-    });
-  }
-
-  bool _isDefaultList(TodoList list) {
-    // Check for new constant ID
-    if (list.id == _defaultListId) return true;
-
-    // Check for legacy default list (created before constant ID was introduced)
-    // It's the first list with the default name and description
-    if (list.name == 'My Tasks' && list.description == 'Default task list') {
-      // Make sure no other list has the constant default ID
-      final hasNewDefault = _lists.any((l) => l.id == _defaultListId);
-      if (!hasNewDefault) return true;
+    if (result != null) {
+      final created = await FirestoreService.instance.createTodo(result);
+      setState(() {
+        _allTodos.add(created);
+      });
     }
-
-    return false;
   }
 
   List<Todo> _getTodosForList(String listId) {
@@ -98,7 +356,9 @@ class _ListsScreenState extends State<ListsScreen> {
     return _allTodos
         .where(
           (todo) =>
-              todo.title.toLowerCase().contains(_searchQuery.toLowerCase()),
+              todo.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+              (todo.note?.toLowerCase().contains(_searchQuery.toLowerCase()) ??
+                  false),
         )
         .toList();
   }
@@ -123,13 +383,18 @@ class _ListsScreenState extends State<ListsScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.panel,
+          backgroundColor: context.isDarkMode
+              ? AppColors.panel
+              : AppColors.lightPanel,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          title: const Text(
+          title: Text(
             'Create New List',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              color: context.textPrimaryColor,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -138,30 +403,30 @@ class _ListsScreenState extends State<ListsScreen> {
               children: [
                 TextField(
                   controller: nameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
                     labelText: 'List Name',
-                    labelStyle: TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: context.textMutedColor),
                   ),
                   autofocus: true,
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: descController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
                     labelText: 'Description (Optional)',
-                    labelStyle: TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: context.textMutedColor),
                   ),
                   maxLines: 2,
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Choose Color',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: Colors.white,
+                    color: context.textPrimaryColor,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -213,7 +478,9 @@ class _ListsScreenState extends State<ListsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+              style: TextButton.styleFrom(
+                foregroundColor: context.textMutedColor,
+              ),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -249,7 +516,7 @@ class _ListsScreenState extends State<ListsScreen> {
     );
 
     if (result != null) {
-      await DatabaseHelper.instance.createTodoList(result);
+      await FirestoreService.instance.createTodoList(result);
       setState(() {
         _lists.add(result);
       });
@@ -262,27 +529,32 @@ class _ListsScreenState extends State<ListsScreen> {
     int selectedColor = list.color;
 
     final colors = [
-      0xFF9C27B0, // Purple
-      0xFFF44336, // Red
-      0xFF2196F3, // Blue
-      0xFF4CAF50, // Green
-      0xFFFF9800, // Orange
-      0xFFE91E63, // Pink
-      0xFF00BCD4, // Cyan
-      0xFFFF5722, // Deep Orange
+      0xFF9C27B0,
+      0xFFF44336,
+      0xFF2196F3,
+      0xFF4CAF50,
+      0xFFFF9800,
+      0xFFE91E63,
+      0xFF00BCD4,
+      0xFFFF5722,
     ];
 
     final result = await showDialog<TodoList>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.panel,
+          backgroundColor: context.isDarkMode
+              ? AppColors.panel
+              : AppColors.lightPanel,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          title: const Text(
+          title: Text(
             'Edit List',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              color: context.textPrimaryColor,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -291,30 +563,30 @@ class _ListsScreenState extends State<ListsScreen> {
               children: [
                 TextField(
                   controller: nameController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
                     labelText: 'List Name',
-                    labelStyle: TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: context.textMutedColor),
                   ),
                   autofocus: true,
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: descController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
                     labelText: 'Description (Optional)',
-                    labelStyle: TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: context.textMutedColor),
                   ),
                   maxLines: 2,
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'Choose Color',
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
-                    color: Colors.white,
+                    color: context.textPrimaryColor,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -366,7 +638,9 @@ class _ListsScreenState extends State<ListsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
+              style: TextButton.styleFrom(
+                foregroundColor: context.textMutedColor,
+              ),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -402,7 +676,7 @@ class _ListsScreenState extends State<ListsScreen> {
     );
 
     if (result != null) {
-      await DatabaseHelper.instance.updateTodoList(result);
+      await FirestoreService.instance.updateTodoList(result);
       setState(() {
         final index = _lists.indexWhere((l) => l.id == result.id);
         if (index != -1) {
@@ -416,22 +690,27 @@ class _ListsScreenState extends State<ListsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.panel,
+        backgroundColor: context.isDarkMode
+            ? AppColors.panel
+            : AppColors.lightPanel,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text(
+        title: Text(
           'Delete List',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: context.textPrimaryColor,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         content: Text(
           'Are you sure you want to delete "${list.name}"? All todos in this list will be deleted.',
-          style: const TextStyle(color: AppColors.textMuted),
+          style: TextStyle(color: context.textMutedColor),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
+            child: Text(
               'Cancel',
-              style: TextStyle(color: AppColors.textMuted),
+              style: TextStyle(color: context.textMutedColor),
             ),
           ),
           ElevatedButton(
@@ -455,7 +734,7 @@ class _ListsScreenState extends State<ListsScreen> {
   }
 
   Future<void> _deleteList(String listId) async {
-    await DatabaseHelper.instance.deleteTodoList(listId);
+    await FirestoreService.instance.deleteTodoList(listId);
     setState(() {
       _lists.removeWhere((list) => list.id == listId);
       _allTodos.removeWhere((todo) => todo.listId == listId);
@@ -470,10 +749,14 @@ class _ListsScreenState extends State<ListsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+      return Scaffold(
+        backgroundColor: context.backgroundColor,
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.accent),
+        ),
       );
     }
 
@@ -481,44 +764,45 @@ class _ListsScreenState extends State<ListsScreen> {
     final showSearchResults = _searchQuery.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.backgroundColor,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _quickAddTask,
+        backgroundColor: AppColors.accent,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          'Add Task',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
       body: Stack(
         children: [
           Container(
-            height: 260,
+            height: 200,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xff0c1224),
-                  const Color(0xff111c34),
-                  const Color(0xff18294a),
-                ],
+                colors: context.isDarkMode
+                    ? [
+                        const Color(0xff0c1224),
+                        const Color(0xff111c34),
+                      ]
+                    : [
+                        AppColors.lightBackground,
+                        AppColors.accent.withValues(alpha: 0.08),
+                      ],
               ),
             ),
           ),
           Positioned(
-            right: -40,
-            top: -60,
+            right: -30,
+            top: -40,
             child: Container(
-              width: 180,
-              height: 180,
+              width: 140,
+              height: 140,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.accent.withValues(alpha: 0.12),
-              ),
-            ),
-          ),
-          Positioned(
-            left: -20,
-            top: 40,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.accentAlt.withValues(alpha: 0.14),
+                color: AppColors.accent.withValues(alpha: 0.08),
               ),
             ),
           ),
@@ -526,126 +810,110 @@ class _ListsScreenState extends State<ListsScreen> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 8,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Welcome Mayooor',
+                                Text(
+                                  'Hello, ${userProvider.username} 👋',
                                   style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
+                                    color: context.textPrimaryColor,
+                                    fontSize: 24,
                                     fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
                                   ),
                                 ),
-                                const SizedBox(height: 12),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.surface.withValues(
-                                          alpha: 0.7,
-                                        ),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                          color: AppColors.outline,
-                                        ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withValues(
-                                              alpha: 0.35,
-                                            ),
-                                            blurRadius: 20,
-                                            offset: const Offset(0, 12),
-                                          ),
-                                        ],
-                                      ),
-                                      child: const Icon(
-                                        Icons.folder_special,
-                                        color: AppColors.accentAlt,
-                                        size: 28,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Checko',
-                                          style: TextStyle(
-                                            color: AppColors.textMuted
-                                                .withValues(alpha: 0.9),
-                                            fontSize: 14,
-                                            letterSpacing: 0.3,
-                                          ),
-                                        ),
-                                        const Text(
-                                          'My Lists',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 28,
-                                            fontWeight: FontWeight.bold,
-                                            letterSpacing: 1.1,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Let\'s organize your day',
+                                  style: TextStyle(
+                                    color: context.textMutedColor,
+                                    fontSize: 14,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          IconButton(
-                            splashRadius: 24,
-                            onPressed: _addList,
-                            icon: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    AppColors.accent,
-                                    AppColors.accentAlt,
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.warning.withValues(alpha: 0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text('🔥', style: TextStyle(fontSize: 16)),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '${userProvider.currentStreak}',
+                                      style: TextStyle(
+                                        color: context.textPrimaryColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
                                   ],
                                 ),
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.accent.withValues(
-                                      alpha: 0.5,
-                                    ),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
                               ),
-                              child: Icon(Icons.add, color: Colors.white),
-                            ),
+                              const SizedBox(width: 12),
+                              GestureDetector(
+                                onTap: _addList,
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [AppColors.accent, AppColors.accentAlt],
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.accent.withValues(alpha: 0.3),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       Container(
                         decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppColors.outline),
+                          color: context.surfaceColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: context.outlineColor.withValues(alpha: 0.5),
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.28),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
                             ),
                           ],
                         ),
@@ -656,27 +924,29 @@ class _ListsScreenState extends State<ListsScreen> {
                               _searchQuery = value;
                             });
                           },
-                          style: const TextStyle(color: Colors.white),
+                          style: TextStyle(color: context.textPrimaryColor),
                           decoration: InputDecoration(
-                            hintText: 'Search todos across all lists...',
+                            hintText: 'Search your tasks...',
                             hintStyle: TextStyle(
-                              color: AppColors.textMuted.withValues(alpha: 0.8),
-                              fontSize: 15,
+                              color: context.textMutedColor.withValues(alpha: 0.7),
+                              fontSize: 14,
                             ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
+                              horizontal: 16,
                               vertical: 14,
                             ),
                             prefixIcon: Icon(
                               Icons.search,
-                              color: AppColors.textMuted,
+                              color: context.textMutedColor.withValues(alpha: 0.7),
+                              size: 22,
                             ),
                             suffixIcon: _searchQuery.isNotEmpty
                                 ? IconButton(
                                     icon: Icon(
                                       Icons.clear,
-                                      color: AppColors.textMuted,
+                                      color: context.textMutedColor,
+                                      size: 20,
                                     ),
                                     onPressed: () {
                                       setState(() {
@@ -696,13 +966,13 @@ class _ListsScreenState extends State<ListsScreen> {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.panel,
+                      color: context.panelColor,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(28),
                         topRight: Radius.circular(28),
                       ),
-                      border: const Border(
-                        top: BorderSide(color: AppColors.outline),
+                      border: Border(
+                        top: BorderSide(color: context.outlineColor),
                       ),
                     ),
                     child: showSearchResults
@@ -726,10 +996,10 @@ class _ListsScreenState extends State<ListsScreen> {
           padding: const EdgeInsets.all(18),
           child: Text(
             '${results.length} result${results.length == 1 ? '' : 's'} found',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: context.textPrimaryColor,
             ),
           ),
         ),
@@ -742,14 +1012,14 @@ class _ListsScreenState extends State<ListsScreen> {
                       Icon(
                         Icons.search_off,
                         size: 74,
-                        color: AppColors.textMuted.withValues(alpha: 0.5),
+                        color: context.textMutedColor.withValues(alpha: 0.5),
                       ),
                       const SizedBox(height: 14),
-                      const Text(
+                      Text(
                         'No results found',
                         style: TextStyle(
                           fontSize: 18,
-                          color: Colors.white,
+                          color: context.textPrimaryColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -772,8 +1042,8 @@ class _ListsScreenState extends State<ListsScreen> {
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(18),
-                        color: AppColors.surface,
-                        border: Border.all(color: AppColors.outline),
+                        color: context.surfaceColor,
+                        border: Border.all(color: context.outlineColor),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.28),
@@ -794,7 +1064,7 @@ class _ListsScreenState extends State<ListsScreen> {
                         title: Text(
                           todo.title,
                           style: TextStyle(
-                            color: Colors.white,
+                            color: context.textPrimaryColor,
                             decoration: todo.isCompleted
                                 ? TextDecoration.lineThrough
                                 : null,
@@ -803,7 +1073,7 @@ class _ListsScreenState extends State<ListsScreen> {
                         subtitle: Text(
                           list.name,
                           style: TextStyle(
-                            color: AppColors.textMuted,
+                            color: context.textMutedColor,
                             fontSize: 12,
                           ),
                         ),
@@ -813,7 +1083,7 @@ class _ListsScreenState extends State<ListsScreen> {
                               : Icons.radio_button_unchecked,
                           color: todo.isCompleted
                               ? AppColors.success
-                              : AppColors.textMuted,
+                              : context.textMutedColor,
                         ),
                         onTap: () {
                           Navigator.push(
@@ -856,14 +1126,14 @@ class _ListsScreenState extends State<ListsScreen> {
                       Icon(
                         Icons.folder_open,
                         size: 74,
-                        color: AppColors.textMuted.withValues(alpha: 0.5),
+                        color: context.textMutedColor.withValues(alpha: 0.5),
                       ),
                       const SizedBox(height: 14),
-                      const Text(
+                      Text(
                         'No lists yet',
                         style: TextStyle(
                           fontSize: 18,
-                          color: Colors.white,
+                          color: context.textPrimaryColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -872,7 +1142,7 @@ class _ListsScreenState extends State<ListsScreen> {
                         'Create your first list to get started',
                         style: TextStyle(
                           fontSize: 14,
-                          color: AppColors.textMuted.withValues(alpha: 0.9),
+                          color: context.textMutedColor.withValues(alpha: 0.9),
                         ),
                       ),
                     ],
@@ -880,7 +1150,6 @@ class _ListsScreenState extends State<ListsScreen> {
                 )
               : LayoutBuilder(
                   builder: (context, constraints) {
-                    // Calculate responsive crossAxisCount and childAspectRatio
                     final screenWidth = MediaQuery.of(context).size.width;
                     final crossAxisCount = screenWidth > 600 ? 3 : 2;
                     final aspectRatio = screenWidth > 600 ? 0.75 : 0.82;
@@ -923,59 +1192,71 @@ class _ListsScreenState extends State<ListsScreen> {
                               ),
                             );
                           },
-                          onLongPress: _isDefaultList(list)
-                              ? null
-                              : () {
-                                  showModalBottomSheet(
-                                    context: context,
-                                    backgroundColor: AppColors.panel,
-                                    shape: const RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.vertical(
-                                        top: Radius.circular(20),
+                          onLongPress: () {
+                            showModalBottomSheet(
+                              context: context,
+                              backgroundColor: context.panelColor,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(20),
+                                ),
+                              ),
+                              builder: (context) => Container(
+                                padding: const EdgeInsets.all(20),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      leading: const Icon(
+                                        Icons.edit,
+                                        color: AppColors.accent,
                                       ),
-                                    ),
-                                    builder: (context) => Container(
-                                      padding: const EdgeInsets.all(20),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          ListTile(
-                                            leading: const Icon(
-                                              Icons.edit,
-                                              color: AppColors.accent,
-                                            ),
-                                            title: const Text(
-                                              'Edit List',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            onTap: () {
-                                              Navigator.pop(context);
-                                              _editList(list);
-                                            },
-                                          ),
-                                          ListTile(
-                                            leading: const Icon(
-                                              Icons.delete,
-                                              color: AppColors.danger,
-                                            ),
-                                            title: const Text(
-                                              'Delete List',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
-                                            ),
-                                            onTap: () {
-                                              Navigator.pop(context);
-                                              _confirmDeleteList(list);
-                                            },
-                                          ),
-                                        ],
+                                      title: Text(
+                                        'Edit List',
+                                        style: TextStyle(
+                                          color: context.textPrimaryColor,
+                                        ),
                                       ),
+                                      onTap: () {
+                                        Navigator.pop(context);
+                                        _editList(list);
+                                      },
                                     ),
-                                  );
-                                },
+                                    if (!_isProtectedList(list))
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.delete,
+                                          color: AppColors.danger,
+                                        ),
+                                        title: Text(
+                                          'Delete List',
+                                          style: TextStyle(
+                                            color: context.textPrimaryColor,
+                                          ),
+                                        ),
+                                        onTap: () {
+                                          Navigator.pop(context);
+                                          _confirmDeleteList(list);
+                                        },
+                                      )
+                                    else
+                                      ListTile(
+                                        leading: Icon(
+                                          Icons.lock_outline,
+                                          color: context.textMutedColor,
+                                        ),
+                                        title: Text(
+                                          'This list cannot be deleted',
+                                          style: TextStyle(
+                                            color: context.textMutedColor,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                           child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
@@ -983,115 +1264,109 @@ class _ListsScreenState extends State<ListsScreen> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                                 colors: [
-                                  Color(list.color),
-                                  Color(list.color).withValues(alpha: 0.8),
+                                  Color(list.color).withValues(alpha: 0.85),
+                                  Color(list.color).withValues(alpha: 0.95),
                                 ],
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Color(
-                                    list.color,
-                                  ).withValues(alpha: 0.3),
-                                  blurRadius: 12,
+                                  color: Color(list.color).withValues(alpha: 0.35),
+                                  blurRadius: 16,
                                   offset: const Offset(0, 6),
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
                                 ),
                               ],
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.3,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.1),
+                                    Colors.white.withValues(alpha: 0.05),
+                                  ],
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.25),
+                                            borderRadius: BorderRadius.circular(12),
                                           ),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                          child: const Icon(
+                                            Icons.folder_rounded,
+                                            color: Colors.white,
+                                            size: 20,
                                           ),
                                         ),
-                                        child: const Icon(
-                                          Icons.folder,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      if (_isDefaultList(list))
+                                        const Spacer(),
                                         Icon(
-                                          Icons.lock_outline,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.7,
-                                          ),
-                                          size: 16,
-                                        )
-                                      else
-                                        Icon(
-                                          Icons.more_vert,
-                                          color: Colors.white.withValues(
-                                            alpha: 0.7,
-                                          ),
+                                          _isProtectedList(list)
+                                              ? Icons.lock_outline
+                                              : Icons.more_vert,
+                                          color: Colors.white.withValues(alpha: 0.7),
                                           size: 18,
                                         ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Flexible(
-                                    child: Text(
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
                                       list.name,
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 16,
+                                        fontSize: 17,
                                         fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.3,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                  ),
-                                  if (list.description != null) ...[
-                                    const SizedBox(height: 4),
-                                    Flexible(
-                                      child: Text(
+                                    if (list.description != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
                                         list.description!,
                                         style: TextStyle(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.9,
-                                          ),
+                                          color: Colors.white.withValues(alpha: 0.85),
                                           fontSize: 11,
                                         ),
-                                        maxLines: 2,
+                                        maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                  ],
-                                  const Spacer(),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 6,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.25,
+                                    ],
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
                                       ),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.task_alt,
-                                          color: Colors.white,
-                                          size: 14,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Flexible(
-                                          child: Text(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.check_circle_outline,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
                                             '${todos.length} task${todos.length == 1 ? '' : 's'}',
                                             style: const TextStyle(
                                               color: Colors.white,
@@ -1100,64 +1375,49 @@ class _ListsScreenState extends State<ListsScreen> {
                                             ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            todos.isEmpty
+                                                ? 'No tasks'
+                                                : '$completedCount/${todos.length}',
+                                            style: TextStyle(
+                                              color: Colors.white.withValues(alpha: 0.9),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          '${(progress * 100).round()}%',
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Flexible(
-                                            child: Text(
-                                              todos.isEmpty
-                                                  ? 'No tasks'
-                                                  : '$completedCount of ${todos.length} done',
-                                              style: TextStyle(
-                                                color: Colors.white.withValues(
-                                                  alpha: 0.95,
-                                                ),
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          Text(
-                                            '${(progress * 100).round()}%',
-                                            style: TextStyle(
-                                              color: Colors.white.withValues(
-                                                alpha: 0.95,
-                                              ),
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
+                                    const SizedBox(height: 6),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: LinearProgressIndicator(
+                                        value: progress,
+                                        backgroundColor: Colors.white.withValues(alpha: 0.25),
+                                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                                        minHeight: 5,
                                       ),
-                                      const SizedBox(height: 6),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: LinearProgressIndicator(
-                                          value: progress,
-                                          backgroundColor: Colors.white
-                                              .withValues(alpha: 0.3),
-                                          valueColor:
-                                              const AlwaysStoppedAnimation<
-                                                Color
-                                              >(Colors.white),
-                                          minHeight: 5,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

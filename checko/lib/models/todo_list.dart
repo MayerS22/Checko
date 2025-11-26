@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class TodoList {
   final String id;
   final String name;
@@ -11,21 +13,23 @@ class TodoList {
     this.color = 0xFF9C27B0, // Default purple color
   });
 
-  Map<String, dynamic> toMap() {
+  // For Firestore
+  Map<String, dynamic> toFirestore() {
     return {
-      'id': id,
       'name': name,
       'description': description,
       'color': color,
+      'createdAt': FieldValue.serverTimestamp(),
     };
   }
 
-  factory TodoList.fromMap(Map<String, dynamic> map) {
+  factory TodoList.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
     return TodoList(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      description: map['description'] as String?,
-      color: map['color'] as int,
+      id: doc.id,
+      name: data['name'] as String,
+      description: data['description'] as String?,
+      color: data['color'] as int,
     );
   }
 }

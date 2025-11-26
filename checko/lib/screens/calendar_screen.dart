@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../models/event.dart';
 import '../models/todo.dart';
-import '../database/database_helper.dart';
+import '../database/firestore_service.dart';
+import '../providers/user_provider.dart';
 import '../theme/app_colors.dart';
 
 class CalendarScreen extends StatefulWidget {
@@ -30,8 +32,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final events = await DatabaseHelper.instance.readAllEvents();
-    final todos = await DatabaseHelper.instance.readAllTodos();
+    final events = await FirestoreService.instance.readAllEvents();
+    final todos = await FirestoreService.instance.readAllTodos();
     final todosWithDates = todos.where((t) => t.dueDate != null).toList();
 
     setState(() {
@@ -64,13 +66,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.panel,
+          backgroundColor: context.isDarkMode ? AppColors.panel : AppColors.lightPanel,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
-          title: const Text(
+          title: Text(
             'Add Event',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            style: TextStyle(color: context.textPrimaryColor, fontWeight: FontWeight.w700),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -78,37 +80,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
               children: [
                 TextField(
                   controller: titleController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
                     labelText: 'Event Title',
-                    labelStyle: TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: context.textMutedColor),
                   ),
                   autofocus: true,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: descriptionController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
                     labelText: 'Description (Optional)',
-                    labelStyle: TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: context.textMutedColor),
                   ),
                   maxLines: 2,
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: locationController,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: context.textPrimaryColor),
+                  decoration: InputDecoration(
                     labelText: 'Location (Optional)',
-                    labelStyle: TextStyle(color: AppColors.textMuted),
+                    labelStyle: TextStyle(color: context.textMutedColor),
                   ),
                 ),
                 const SizedBox(height: 16),
                 ListTile(
-                  title: const Text(
+                  title: Text(
                     'Start Time',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: context.textPrimaryColor, fontSize: 14),
                   ),
                   subtitle: Text(
                     DateFormat('MMM dd, yyyy - hh:mm a').format(startTime),
@@ -145,9 +147,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   },
                 ),
                 ListTile(
-                  title: const Text(
+                  title: Text(
                     'End Time',
-                    style: TextStyle(color: Colors.white, fontSize: 14),
+                    style: TextStyle(color: context.textPrimaryColor, fontSize: 14),
                   ),
                   subtitle: Text(
                     DateFormat('MMM dd, yyyy - hh:mm a').format(endTime),
@@ -186,7 +188,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+              child: Text('Cancel', style: TextStyle(color: context.textMutedColor)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -221,22 +223,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
 
     if (result != null) {
-      await DatabaseHelper.instance.createEvent(result);
+      await FirestoreService.instance.createEvent(result);
       await _loadData();
     }
   }
 
   Future<void> _deleteEvent(String id) async {
-    await DatabaseHelper.instance.deleteEvent(id);
+    await FirestoreService.instance.deleteEvent(id);
     await _loadData();
   }
 
   @override
   Widget build(BuildContext context) {
+    final userProvider = context.watch<UserProvider>();
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.background,
-        body: Center(
+      return Scaffold(
+        backgroundColor: context.backgroundColor,
+        body: const Center(
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
       );
@@ -245,7 +249,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final selectedDayEvents = _selectedDay != null ? _getEventsForDay(_selectedDay!) : [];
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.backgroundColor,
       body: Stack(
         children: [
           Container(
@@ -255,7 +259,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  AppColors.background,
+                  context.backgroundColor,
                   AppColors.accent.withValues(alpha: 0.14),
                   AppColors.accentAlt.withValues(alpha: 0.14),
                 ],
@@ -270,10 +274,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Welcome Mayooor',
+                      Text(
+                        'Welcome ${userProvider.username}',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.textPrimaryColor,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 0.5,
@@ -285,9 +289,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: AppColors.surfaceElevated,
+                              color: context.surfaceElevatedColor,
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: AppColors.outline),
+                              border: Border.all(color: context.outlineColor),
                             ),
                             child: const Icon(
                               Icons.calendar_month,
@@ -296,20 +300,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          const Column(
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Checko',
                                 style: TextStyle(
-                                  color: AppColors.textMuted,
+                                  color: context.textMutedColor,
                                   fontSize: 14,
                                 ),
                               ),
                               Text(
                                 'Calendar',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: context.textPrimaryColor,
                                   fontSize: 28,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -346,9 +350,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 Expanded(
                   child: Container(
                     margin: const EdgeInsets.only(top: 8),
-                    decoration: const BoxDecoration(
-                      color: AppColors.panel,
-                      borderRadius: BorderRadius.only(
+                    decoration: BoxDecoration(
+                      color: context.panelColor,
+                      borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(28),
                         topRight: Radius.circular(28),
                       ),
@@ -359,9 +363,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         Container(
                           margin: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
-                            color: AppColors.surface,
+                            color: context.surfaceColor,
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: AppColors.outline),
+                            border: Border.all(color: context.outlineColor),
                           ),
                           child: TableCalendar(
                             firstDay: DateTime(2020),
@@ -398,24 +402,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 shape: BoxShape.circle,
                               ),
                               weekendTextStyle: const TextStyle(color: Colors.red),
-                              defaultTextStyle: const TextStyle(color: Colors.white),
-                              outsideTextStyle: TextStyle(color: AppColors.textMuted.withValues(alpha: 0.5)),
+                              defaultTextStyle: TextStyle(color: context.textPrimaryColor),
+                              outsideTextStyle: TextStyle(color: context.textMutedColor.withValues(alpha: 0.5)),
                             ),
-                            headerStyle: const HeaderStyle(
+                            headerStyle: HeaderStyle(
                               formatButtonVisible: true,
                               titleCentered: true,
                               formatButtonShowsNext: false,
                               titleTextStyle: TextStyle(
-                                color: Colors.white,
+                                color: context.textPrimaryColor,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
-                              formatButtonTextStyle: TextStyle(color: Colors.white),
-                              leftChevronIcon: Icon(Icons.chevron_left, color: Colors.white),
-                              rightChevronIcon: Icon(Icons.chevron_right, color: Colors.white),
+                              formatButtonTextStyle: TextStyle(color: context.textPrimaryColor),
+                              leftChevronIcon: Icon(Icons.chevron_left, color: context.textPrimaryColor),
+                              rightChevronIcon: Icon(Icons.chevron_right, color: context.textPrimaryColor),
                             ),
                             daysOfWeekStyle: DaysOfWeekStyle(
-                              weekdayStyle: TextStyle(color: AppColors.textMuted),
+                              weekdayStyle: TextStyle(color: context.textMutedColor),
                               weekendStyle: TextStyle(color: Colors.red.withValues(alpha: 0.7)),
                             ),
                           ),
@@ -429,8 +433,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                 _selectedDay != null
                                     ? DateFormat('EEEE, MMMM d').format(_selectedDay!)
                                     : 'Select a date',
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: context.textPrimaryColor,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -438,8 +442,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               const Spacer(),
                               Text(
                                 '${selectedDayEvents.length} item${selectedDayEvents.length == 1 ? '' : 's'}',
-                                style: const TextStyle(
-                                  color: AppColors.textMuted,
+                                style: TextStyle(
+                                  color: context.textMutedColor,
                                   fontSize: 14,
                                 ),
                               ),
@@ -456,22 +460,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       Icon(
                                         Icons.event_available,
                                         size: 64,
-                                        color: AppColors.textMuted.withValues(alpha: 0.5),
+                                        color: context.textMutedColor.withValues(alpha: 0.5),
                                       ),
                                       const SizedBox(height: 12),
-                                      const Text(
+                                      Text(
                                         'No events or tasks',
                                         style: TextStyle(
-                                          color: Colors.white,
+                                          color: context.textPrimaryColor,
                                           fontSize: 16,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
-                                      const Text(
+                                      Text(
                                         'Add an event for this day',
                                         style: TextStyle(
-                                          color: AppColors.textMuted,
+                                          color: context.textMutedColor,
                                           fontSize: 14,
                                         ),
                                       ),
@@ -523,9 +527,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: context.surfaceColor,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.outline),
+          border: Border.all(color: context.outlineColor),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.18),
@@ -555,8 +559,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 Expanded(
                   child: Text(
                     event.title,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: context.textPrimaryColor,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -568,8 +572,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
               const SizedBox(height: 8),
               Text(
                 event.description!,
-                style: const TextStyle(
-                  color: AppColors.textMuted,
+                style: TextStyle(
+                  color: context.textMutedColor,
                   fontSize: 14,
                 ),
               ),
@@ -577,24 +581,24 @@ class _CalendarScreenState extends State<CalendarScreen> {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.access_time, color: AppColors.textMuted, size: 16),
+                Icon(Icons.access_time, color: context.textMutedColor, size: 16),
                 const SizedBox(width: 4),
                 Text(
                   '${DateFormat('hh:mm a').format(event.startTime)} - ${DateFormat('hh:mm a').format(event.endTime)}',
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
+                  style: TextStyle(
+                    color: context.textMutedColor,
                     fontSize: 13,
                   ),
                 ),
                 if (event.location != null) ...[
                   const SizedBox(width: 16),
-                  const Icon(Icons.location_on, color: AppColors.textMuted, size: 16),
+                  Icon(Icons.location_on, color: context.textMutedColor, size: 16),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       event.location!,
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
+                      style: TextStyle(
+                        color: context.textMutedColor,
                         fontSize: 13,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -614,10 +618,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
+        color: context.surfaceElevatedColor,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: todo.isCompleted ? AppColors.success : AppColors.outline,
+          color: todo.isCompleted ? AppColors.success : context.outlineColor,
         ),
         boxShadow: [
           BoxShadow(
@@ -641,19 +645,41 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 Text(
                   todo.title,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: context.textPrimaryColor,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                     decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  'Task',
-                  style: TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 12,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      'Task',
+                      style: TextStyle(
+                        color: context.textMutedColor,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (todo.priority == Priority.high) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.priorityHigh.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'HIGH',
+                          style: TextStyle(
+                            color: AppColors.priorityHigh,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

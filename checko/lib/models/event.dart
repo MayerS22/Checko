@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Event {
   final String id;
   final String title;
@@ -17,27 +19,29 @@ class Event {
     this.isCompleted = false,
   });
 
-  Map<String, dynamic> toMap() {
+  // For Firestore
+  Map<String, dynamic> toFirestore() {
     return {
-      'id': id,
       'title': title,
       'description': description,
       'startTime': startTime.toIso8601String(),
       'endTime': endTime.toIso8601String(),
       'location': location,
-      'isCompleted': isCompleted ? 1 : 0,
+      'isCompleted': isCompleted,
+      'createdAt': FieldValue.serverTimestamp(),
     };
   }
 
-  factory Event.fromMap(Map<String, dynamic> map) {
+  factory Event.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
     return Event(
-      id: map['id'] as String,
-      title: map['title'] as String,
-      description: map['description'] as String?,
-      startTime: DateTime.parse(map['startTime'] as String),
-      endTime: DateTime.parse(map['endTime'] as String),
-      location: map['location'] as String?,
-      isCompleted: map['isCompleted'] == 1,
+      id: doc.id,
+      title: data['title'] as String,
+      description: data['description'] as String?,
+      startTime: DateTime.parse(data['startTime'] as String),
+      endTime: DateTime.parse(data['endTime'] as String),
+      location: data['location'] as String?,
+      isCompleted: data['isCompleted'] as bool,
     );
   }
 }

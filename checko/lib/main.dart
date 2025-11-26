@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
+import 'firebase_options.dart';
 import 'theme/app_colors.dart';
+import 'providers/theme_provider.dart';
+import 'providers/user_provider.dart';
+import 'widgets/auth_wrapper.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const MyApp());
 }
 
@@ -11,39 +22,23 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = const ColorScheme.dark().copyWith(
-      primary: AppColors.accent,
-      secondary: AppColors.accentAlt,
-      surface: AppColors.surface,
-      surfaceContainerHighest: AppColors.surfaceElevated,
-    );
-
-    return MaterialApp(
-      title: 'Checko',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: colorScheme,
-        scaffoldBackgroundColor: AppColors.background,
-        cardColor: AppColors.surface,
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: AppColors.surface,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppColors.outline),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppColors.outline),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: AppColors.accent),
-          ),
-        ),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+      ],
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Checko',
+            debugShowCheckedModeBanner: false,
+            theme: themeProvider.isDarkMode
+                ? AppTheme.darkTheme()
+                : AppTheme.lightTheme(),
+            home: const AuthWrapper(),
+          );
+        },
       ),
-      home: const HomeScreen(),
     );
   }
 }

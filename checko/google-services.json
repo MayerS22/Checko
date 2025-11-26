@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "800049255852",
+    "project_id": "checko-fd7f9",
+    "storage_bucket": "checko-fd7f9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800049255852:android:8cc7de2e7086d2ebef1609",
+        "android_client_info": {
+          "package_name": "com.example.checko"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "800049255852-fhj4jof6rm187lcrv22bt7ncpjtu396n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.checko",
+            "certificate_hash": "e5f709da3fa01102391c1c197813ac6cb7032eff"
+          }
+        },
+        {
+          "client_id": "800049255852-0up73jmkabun1o604292k19o9c3um2ij.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDIdxGsMjmxWb4zQn2b0bDNaH9RcuRahPM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "800049255852-0up73jmkabun1o604292k19o9c3um2ij.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "800049255852-homhehojj7mmh77vvmdajp99v9ssbeso.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.checko"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
