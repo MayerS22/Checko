@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/todo.dart';
+import '../models/todo_list.dart';
 import '../database/firestore_service.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_colors.dart';
@@ -21,6 +22,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   bool _isLoading = true;
   late TabController _tabController;
   late DateTime _selectedMonth;
+  String? _myDayListId;
 
   @override
   void initState() {
@@ -38,6 +40,7 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
+    final lists = await FirestoreService.instance.readAllTodoLists();
     final todos = await FirestoreService.instance.readAllTodos();
     final heatmap = await FirestoreService.instance.getMonthlyHeatmapData(
       _selectedMonth.year,
@@ -45,10 +48,16 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     );
     final hourly = await FirestoreService.instance.getProductivityByHour();
     
+    if (!mounted) return;
     setState(() {
       _allTodos = todos;
       _heatmapData = heatmap;
       _hourlyData = hourly;
+      final myDay = lists.firstWhere(
+        (l) => l.name == 'My Day',
+        orElse: () => TodoList(id: '', name: ''),
+      );
+      _myDayListId = myDay.id.isEmpty ? null : myDay.id;
       _isLoading = false;
     });
   }
@@ -78,21 +87,14 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
   int get _todayCompletedCount {
     final today = DateTime.now();
     return _allTodos.where((todo) {
-      return todo.isCompleted &&
-          todo.completedAt != null &&
-          todo.completedAt!.year == today.year &&
-          todo.completedAt!.month == today.month &&
-          todo.completedAt!.day == today.day;
+      return _isInMyDay(todo, today) && todo.isCompleted;
     }).length;
   }
 
   int get _todayTotalCount {
     final today = DateTime.now();
     return _allTodos.where((todo) {
-      return todo.dueDate != null &&
-          todo.dueDate!.year == today.year &&
-          todo.dueDate!.month == today.month &&
-          todo.dueDate!.day == today.day;
+      return _isInMyDay(todo, today);
     }).length;
   }
 
@@ -114,6 +116,20 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     return maxHour;
   }
 
+  bool _isSameDay(DateTime? date, DateTime other) {
+    if (date == null) return false;
+    return date.year == other.year &&
+        date.month == other.month &&
+        date.day == other.day;
+  }
+
+  bool _isInMyDay(Todo todo, DateTime today) {
+    final inMyDayList = _myDayListId != null && todo.listId == _myDayListId;
+    final dueToday = _isSameDay(todo.dueDate, today);
+    // My Day shows tasks due today regardless of list, or anything explicitly in My Day
+    return inMyDayList || dueToday;
+  }
+
   @override
   Widget build(BuildContext context) {
     final userProvider = context.watch<UserProvider>();
@@ -128,8 +144,9 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
     }
 
     final stats = _getLast7DaysStats();
+    final todayTotal = _todayTotalCount;
     final todayProgress =
-        _todayTotalCount == 0 ? 0.0 : _todayCompletedCount / _todayTotalCount;
+        todayTotal == 0 ? 0.0 : _todayCompletedCount / todayTotal;
 
     return Scaffold(
       backgroundColor: context.backgroundColor,
@@ -204,6 +221,12 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
                             ],
                           ),
                           const Spacer(),
+                          IconButton(
+                            tooltip: 'Refresh stats',
+                            icon: const Icon(Icons.refresh),
+                            color: context.textPrimaryColor,
+                            onPressed: _loadData,
+                          ),
                           // Streak badge
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -306,101 +329,6 @@ class _ProgressScreenState extends State<ProgressScreen> with SingleTickerProvid
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Today's Progress
-          Text(
-            'Today\'s Progress',
-            style: TextStyle(
-              color: context.textPrimaryColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.accent.withValues(alpha: 0.3),
-                  AppColors.accentAlt.withValues(alpha: 0.3),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: context.outlineColor),
-            ),
-            child: Row(
-              children: [
-                SizedBox(
-                  height: 100,
-                  width: 100,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: todayProgress,
-                        strokeWidth: 10,
-                        backgroundColor: context.surfaceColor,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
-                      ),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${(todayProgress * 100).round()}%',
-                            style: TextStyle(
-                              color: context.textPrimaryColor,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Complete',
-                            style: TextStyle(
-                              color: context.textMutedColor,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _todayTotalCount == 0
-                            ? 'No tasks today'
-                            : '$_todayCompletedCount of $_todayTotalCount tasks done',
-                        style: TextStyle(
-                          color: context.textPrimaryColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _todayTotalCount == 0
-                            ? 'Plan your day ahead'
-                            : _todayCompletedCount == _todayTotalCount
-                                ? 'Great work! All tasks completed!'
-                                : 'Keep going! You\'re doing great.',
-                        style: TextStyle(
-                          color: context.textMutedColor,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const SizedBox(height: 32),
-          
           // Last 7 Days Chart
           Text(
             'Last 7 Days',

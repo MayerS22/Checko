@@ -63,13 +63,17 @@ class _TodoScreenState extends State<TodoScreen> {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       listId: widget.list.id,
       title: _textController.text.trim(),
+      dueDate: widget.list.name == 'My Day'
+          ? DateTime.now()
+          : null,
       order: _todos.length,
     );
 
-    await FirestoreService.instance.createTodo(newTodo);
+    // Persist first to get the Firestore-generated ID so later edits/deletes work
+    final createdTodo = await FirestoreService.instance.createTodo(newTodo);
 
     setState(() {
-      _todos.add(newTodo);
+      _todos.add(createdTodo);
       _textController.clear();
     });
     widget.onTodosChanged(_todos);
@@ -114,9 +118,9 @@ class _TodoScreenState extends State<TodoScreen> {
             completedAt: null,
             order: _todos.length,
           );
-          await FirestoreService.instance.createTodo(newTodo);
+          final createdTodo = await FirestoreService.instance.createTodo(newTodo);
           setState(() {
-            _todos.add(newTodo);
+            _todos.add(createdTodo);
           });
           widget.onTodosChanged(_todos);
         }

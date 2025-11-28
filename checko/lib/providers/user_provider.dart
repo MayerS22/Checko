@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_settings.dart';
 import '../database/firestore_service.dart';
@@ -33,7 +34,7 @@ class UserProvider extends ChangeNotifier {
       // Save to local storage as backup
       await _saveToLocal();
     } catch (e) {
-      print('Failed to load from Firestore, using local storage: $e');
+      debugPrint('Failed to load from Firestore, using local storage: $e');
 
       // Load from local storage
       await _loadFromLocal();
@@ -74,7 +75,7 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> updateUsername(String username) async {
     if (_settings == null) {
-      print('Settings is null, creating new settings');
+      debugPrint('Settings is null, creating new settings');
       _settings = UserSettings(
         id: 'local',
         username: username,
@@ -83,7 +84,7 @@ class UserProvider extends ChangeNotifier {
       _settings = _settings!.copyWith(username: username);
     }
 
-    print('Updating username to: $username');
+    debugPrint('Updating username to: $username');
 
     // Save to local storage first
     _prefs ??= await SharedPreferences.getInstance();
@@ -92,9 +93,9 @@ class UserProvider extends ChangeNotifier {
     // Try to save to Firestore if available
     try {
       await FirestoreService.instance.updateUserSettings(_settings!);
-      print('Username updated successfully in Firestore');
+      debugPrint('Username updated successfully in Firestore');
     } catch (e) {
-      print('Failed to save to Firestore, saved locally: $e');
+      debugPrint('Failed to save to Firestore, saved locally: $e');
     }
 
     notifyListeners();
@@ -255,4 +256,5 @@ class UserProvider extends ChangeNotifier {
     await _loadSettings();
   }
 }
+
 

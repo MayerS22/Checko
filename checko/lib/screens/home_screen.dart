@@ -22,11 +22,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
-  final List<Widget> _screens = const [
-    ListsScreen(),
-    CalendarScreen(),
-    ProgressScreen(),
-  ];
+  int _progressReloadKey = 0;
 
   @override
   void initState() {
@@ -56,6 +52,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _animationController.forward().then((_) {
         setState(() {
           _selectedIndex = index;
+          if (index == 2) {
+            // Force Progress screen to rebuild so it fetches fresh stats
+            _progressReloadKey++;
+          }
         });
         _animationController.reverse();
       });
@@ -180,12 +180,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      const ListsScreen(),
+      const CalendarScreen(),
+      ProgressScreen(key: ValueKey(_progressReloadKey)),
+    ];
+
     return Scaffold(
       body: ScaleTransition(
         scale: _scaleAnimation,
         child: IndexedStack(
           index: _selectedIndex,
-          children: _screens,
+          children: screens,
         ),
       ),
       bottomNavigationBar: Container(
@@ -281,53 +287,52 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }) {
     final isSelected = _selectedIndex == index;
 
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap ?? () => _onItemTapped(index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? const LinearGradient(
-                    colors: [AppColors.accent, AppColors.accentAlt],
-                  )
-                : null,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                      color: AppColors.accent.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? Colors.white : context.textMutedColor,
-                size: 24,
-              ),
-              if (isSelected) ...[
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
+    return GestureDetector(
+      onTap: onTap ?? () => _onItemTapped(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        width: 70,
+        height: 60,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.accent.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.accent.withValues(alpha: 0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppColors.accent : context.textMutedColor,
+              size: 22,
+            ),
+            const SizedBox(height: 4),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                color: isSelected ? AppColors.accent : context.textMutedColor,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 11,
+              ),
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
         ),
       ),
     );

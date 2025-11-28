@@ -20,6 +20,7 @@ class _ListsScreenState extends State<ListsScreen> {
     'My Day',
     'Planned',
     'Books',
+    'Todo',
   ];
 
   final List<TodoList> _lists = [];
@@ -52,6 +53,9 @@ class _ListsScreenState extends State<ListsScreen> {
 
     // Create default lists if they don't exist
     await _createDefaultLists();
+
+    // Ensure overdue tasks roll into the Todo list for catch-up
+    await _moveOverdueTasksToTodoList();
   }
 
   Future<void> _createDefaultLists() async {
@@ -73,6 +77,12 @@ class _ListsScreenState extends State<ListsScreen> {
         'icon': Icons.menu_book,
         'color': 0xFF9C27B0,
         'description': 'Reading list',
+      },
+      {
+        'name': 'Todo',
+        'icon': Icons.list_alt,
+        'color': 0xFF4CAF50,
+        'description': 'All tasks across lists',
       },
     ];
 
@@ -105,7 +115,8 @@ class _ListsScreenState extends State<ListsScreen> {
     final titleController = TextEditingController();
     TodoList? selectedList = _lists.first;
     Priority selectedPriority = Priority.medium;
-    DateTime? selectedDate;
+    DateTime? selectedDate =
+        selectedList.name == 'My Day' ? _todayDateOnly() : null;
 
     final result = await showDialog<Todo>(
       context: context,
@@ -189,6 +200,8 @@ class _ListsScreenState extends State<ListsScreen> {
                     onChanged: (value) {
                       setDialogState(() {
                         selectedList = value;
+                        selectedDate =
+                            selectedList?.name == 'My Day' ? _todayDateOnly() : null;
                       });
                     },
                   ),
@@ -251,6 +264,13 @@ class _ListsScreenState extends State<ListsScreen> {
                 const SizedBox(height: 16),
                 GestureDetector(
                   onTap: () async {
+                    // Force today's date for My Day tasks
+                    if (selectedList?.name == 'My Day') {
+                      setDialogState(() {
+                        selectedDate = _todayDateOnly();
+                      });
+                      return;
+                    }
                     final date = await showDatePicker(
                       context: context,
                       initialDate: DateTime.now(),
@@ -337,7 +357,65 @@ class _ListsScreenState extends State<ListsScreen> {
   }
 
   List<Todo> _getTodosForList(String listId) {
+    final list = _lists.firstWhere(
+      (l) => l.id == listId,
+      orElse: () => TodoList(id: listId, name: ''),
+    );
+
+    // Special handling for My Day: show any task due today, regardless of its original list
+    if (list.name == 'My Day') {
+      final today = _todayDateOnly();
+      return _allTodos.where((todo) {
+        final due = todo.dueDate;
+        final isDueToday = due != null &&
+            due.year == today.year &&
+            due.month == today.month &&
+            due.day == today.day;
+        return isDueToday || todo.listId == listId;
+      }).toList();
+    }
+
+    // Todo list aggregates everything
+    if (list.name == 'Todo') {
+      return List.from(_allTodos);
+    }
+
     return _allTodos.where((todo) => todo.listId == listId).toList();
+  }
+
+  DateTime _todayDateOnly() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  Future<void> _moveOverdueTasksToTodoList() async {
+    final todoList = _lists.firstWhere(
+      (l) => l.name == 'Todo',
+      orElse: () => TodoList(id: '', name: ''),
+    );
+    if (todoList.id.isEmpty) return; // Not ready yet
+
+    final today = _todayDateOnly();
+    bool updated = false;
+
+    for (int i = 0; i < _allTodos.length; i++) {
+      final todo = _allTodos[i];
+      final due = todo.dueDate;
+      final isOverdue = due != null &&
+          DateTime(due.year, due.month, due.day).isBefore(today) &&
+          !todo.isCompleted;
+
+      if (isOverdue && todo.listId != todoList.id) {
+        final moved = todo.copyWith(listId: todoList.id);
+        await FirestoreService.instance.updateTodo(moved);
+        _allTodos[i] = moved;
+        updated = true;
+      }
+    }
+
+    if (updated && mounted) {
+      setState(() {});
+    }
   }
 
   int _getCompletedCount(String listId) {
