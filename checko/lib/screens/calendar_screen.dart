@@ -4,9 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/event.dart';
 import '../models/todo.dart';
-import '../database/firestore_service.dart';
-import '../providers/user_provider.dart';
-import '../theme/app_colors.dart';
+import '../providers/data_provider.dart';
+import '../theme/ms_todo_colors.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -21,7 +20,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
   DateTime? _selectedDay;
   List<Event> _events = [];
   List<Todo> _todosWithDates = [];
-  bool _isLoading = true;
 
   @override
   void initState() {
@@ -31,15 +29,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
-    final events = await FirestoreService.instance.readAllEvents();
-    final todos = await FirestoreService.instance.readAllTodos();
+    final dataProvider = context.read<DataProvider>();
+    final events = dataProvider.events;
+    final todos = dataProvider.todos;
     final todosWithDates = todos.where((t) => t.dueDate != null).toList();
 
     setState(() {
       _events = events;
       _todosWithDates = todosWithDates;
-      _isLoading = false;
     });
   }
 
@@ -55,633 +52,335 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return [...events, ...todos];
   }
 
-  Future<void> _addEvent() async {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final locationController = TextEditingController();
-    DateTime startTime = _selectedDay ?? DateTime.now();
-    DateTime endTime = startTime.add(const Duration(hours: 1));
-
-    final result = await showDialog<Event>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: context.isDarkMode ? AppColors.panel : AppColors.lightPanel,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
-          title: Text(
-            'Add Event',
-            style: TextStyle(color: context.textPrimaryColor, fontWeight: FontWeight.w700),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  style: TextStyle(color: context.textPrimaryColor),
-                  decoration: InputDecoration(
-                    labelText: 'Event Title',
-                    labelStyle: TextStyle(color: context.textMutedColor),
-                  ),
-                  autofocus: true,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descriptionController,
-                  style: TextStyle(color: context.textPrimaryColor),
-                  decoration: InputDecoration(
-                    labelText: 'Description (Optional)',
-                    labelStyle: TextStyle(color: context.textMutedColor),
-                  ),
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: locationController,
-                  style: TextStyle(color: context.textPrimaryColor),
-                  decoration: InputDecoration(
-                    labelText: 'Location (Optional)',
-                    labelStyle: TextStyle(color: context.textMutedColor),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ListTile(
-                  title: Text(
-                    'Start Time',
-                    style: TextStyle(color: context.textPrimaryColor, fontSize: 14),
-                  ),
-                  subtitle: Text(
-                    DateFormat('MMM dd, yyyy - hh:mm a').format(startTime),
-                    style: const TextStyle(color: AppColors.accent),
-                  ),
-                  trailing: const Icon(Icons.access_time, color: AppColors.accent),
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: startTime,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2030),
-                    );
-                    if (date != null && context.mounted) {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.fromDateTime(startTime),
-                      );
-                      if (time != null) {
-                        setDialogState(() {
-                          startTime = DateTime(
-                            date.year,
-                            date.month,
-                            date.day,
-                            time.hour,
-                            time.minute,
-                          );
-                          if (endTime.isBefore(startTime)) {
-                            endTime = startTime.add(const Duration(hours: 1));
-                          }
-                        });
-                      }
-                    }
-                  },
-                ),
-                ListTile(
-                  title: Text(
-                    'End Time',
-                    style: TextStyle(color: context.textPrimaryColor, fontSize: 14),
-                  ),
-                  subtitle: Text(
-                    DateFormat('MMM dd, yyyy - hh:mm a').format(endTime),
-                    style: const TextStyle(color: AppColors.accentAlt),
-                  ),
-                  trailing: const Icon(Icons.access_time, color: AppColors.accentAlt),
-                  onTap: () async {
-                    final date = await showDatePicker(
-                      context: context,
-                      initialDate: endTime,
-                      firstDate: startTime,
-                      lastDate: DateTime(2030),
-                    );
-                    if (date != null && context.mounted) {
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.fromDateTime(endTime),
-                      );
-                      if (time != null) {
-                        setDialogState(() {
-                          endTime = DateTime(
-                            date.year,
-                            date.month,
-                            date.day,
-                            time.hour,
-                            time.minute,
-                          );
-                        });
-                      }
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel', style: TextStyle(color: context.textMutedColor)),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () {
-                if (titleController.text.trim().isNotEmpty) {
-                  final newEvent = Event(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    title: titleController.text.trim(),
-                    description: descriptionController.text.trim().isEmpty
-                        ? null
-                        : descriptionController.text.trim(),
-                    startTime: startTime,
-                    endTime: endTime,
-                    location: locationController.text.trim().isEmpty
-                        ? null
-                        : locationController.text.trim(),
-                  );
-                  Navigator.pop(context, newEvent);
-                }
-              },
-              child: const Text('Add Event'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (result != null) {
-      await FirestoreService.instance.createEvent(result);
-      await _loadData();
-    }
-  }
-
-  Future<void> _deleteEvent(String id) async {
-    await FirestoreService.instance.deleteEvent(id);
-    await _loadData();
+  bool _isSameDay(DateTime? a, DateTime? b) {
+    if (a == null || b == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
-
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: context.backgroundColor,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppColors.accent),
-        ),
-      );
-    }
-
+    final isDark = context.isDarkMode;
+    final dataProvider = context.watch<DataProvider>();
     final selectedDayEvents = _selectedDay != null ? _getEventsForDay(_selectedDay!) : [];
 
     return Scaffold(
-      backgroundColor: context.backgroundColor,
-      body: Stack(
+      backgroundColor: isDark ? MSToDoColors.msBackgroundDark : MSToDoColors.msBackground,
+      body: Column(
         children: [
+          // Clean header
           Container(
-            height: 220,
+            padding: const EdgeInsets.fromLTRB(16, 65, 16, 8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  context.backgroundColor,
-                  AppColors.accent.withValues(alpha: 0.14),
-                  AppColors.accentAlt.withValues(alpha: 0.14),
-                ],
+              color: isDark ? MSToDoColors.msSurfaceDark : MSToDoColors.msSurface,
+              border: Border(
+                bottom: BorderSide(
+                  color: isDark ? MSToDoColors.msBorderDark : MSToDoColors.msBorder,
+                ),
               ),
             ),
-          ),
-          SafeArea(
-            child: Column(
+            child: Row(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome ${userProvider.username}',
-                        style: TextStyle(
-                          color: context.textPrimaryColor,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: context.surfaceElevatedColor,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: context.outlineColor),
-                            ),
-                            child: const Icon(
-                              Icons.calendar_month,
-                              color: AppColors.accent,
-                              size: 28,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Checko',
-                                style: TextStyle(
-                                  color: context.textMutedColor,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              Text(
-                                'Calendar',
-                                style: TextStyle(
-                                  color: context.textPrimaryColor,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: _addEvent,
-                            icon: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppColors.accent,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.25),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.add,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                Icon(
+                  Icons.calendar_month,
+                  color: MSToDoColors.msBlue,
+                  size: 20,
                 ),
-                Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.only(top: 8),
-                    decoration: BoxDecoration(
-                      color: context.panelColor,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(28),
-                        topRight: Radius.circular(28),
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 16),
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: context.surfaceColor,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: context.outlineColor),
-                          ),
-                          child: TableCalendar(
-                            firstDay: DateTime(2020),
-                            lastDay: DateTime(2030),
-                            focusedDay: _focusedDay,
-                            calendarFormat: _calendarFormat,
-                            selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                            onDaySelected: (selectedDay, focusedDay) {
-                              setState(() {
-                                _selectedDay = selectedDay;
-                                _focusedDay = focusedDay;
-                              });
-                            },
-                            onFormatChanged: (format) {
-                              setState(() {
-                                _calendarFormat = format;
-                              });
-                            },
-                            onPageChanged: (focusedDay) {
-                              _focusedDay = focusedDay;
-                            },
-                            eventLoader: _getEventsForDay,
-                            calendarStyle: CalendarStyle(
-                              todayDecoration: BoxDecoration(
-                                color: AppColors.accent.withValues(alpha: 0.5),
-                                shape: BoxShape.circle,
-                              ),
-                              selectedDecoration: const BoxDecoration(
-                                color: AppColors.accent,
-                                shape: BoxShape.circle,
-                              ),
-                              markerDecoration: const BoxDecoration(
-                                color: AppColors.accentAlt,
-                                shape: BoxShape.circle,
-                              ),
-                              weekendTextStyle: const TextStyle(color: Colors.red),
-                              defaultTextStyle: TextStyle(color: context.textPrimaryColor),
-                              outsideTextStyle: TextStyle(color: context.textMutedColor.withValues(alpha: 0.5)),
-                            ),
-                            headerStyle: HeaderStyle(
-                              formatButtonVisible: true,
-                              titleCentered: true,
-                              formatButtonShowsNext: false,
-                              titleTextStyle: TextStyle(
-                                color: context.textPrimaryColor,
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              formatButtonTextStyle: TextStyle(color: context.textPrimaryColor),
-                              leftChevronIcon: Icon(Icons.chevron_left, color: context.textPrimaryColor),
-                              rightChevronIcon: Icon(Icons.chevron_right, color: context.textPrimaryColor),
-                            ),
-                            daysOfWeekStyle: DaysOfWeekStyle(
-                              weekdayStyle: TextStyle(color: context.textMutedColor),
-                              weekendStyle: TextStyle(color: Colors.red.withValues(alpha: 0.7)),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Row(
-                            children: [
-                              Text(
-                                _selectedDay != null
-                                    ? DateFormat('EEEE, MMMM d').format(_selectedDay!)
-                                    : 'Select a date',
-                                style: TextStyle(
-                                  color: context.textPrimaryColor,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                '${selectedDayEvents.length} item${selectedDayEvents.length == 1 ? '' : 's'}',
-                                style: TextStyle(
-                                  color: context.textMutedColor,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: selectedDayEvents.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.event_available,
-                                        size: 64,
-                                        color: context.textMutedColor.withValues(alpha: 0.5),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        'No events or tasks',
-                                        style: TextStyle(
-                                          color: context.textPrimaryColor,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Add an event for this day',
-                                        style: TextStyle(
-                                          color: context.textMutedColor,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : ListView.builder(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                                  itemCount: selectedDayEvents.length,
-                                  itemBuilder: (context, index) {
-                                    final item = selectedDayEvents[index];
-                                    if (item is Event) {
-                                      return _buildEventItem(item);
-                                    } else if (item is Todo) {
-                                      return _buildTodoItem(item);
-                                    }
-                                    return const SizedBox();
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
+                const SizedBox(width: 10),
+                Text(
+                  'Calendar',
+                  style: TextStyle(
+                    color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildEventItem(Event event) {
-    return Dismissible(
-      key: Key('event-${event.id}'),
-      direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: AppColors.danger,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        child: const Icon(Icons.delete, color: Colors.white, size: 28),
-      ),
-      onDismissed: (_) => _deleteEvent(event.id),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: context.surfaceColor,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: context.outlineColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 14,
-              offset: const Offset(0, 6),
+          // Calendar
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            decoration: BoxDecoration(
+              color: isDark ? MSToDoColors.msSurfaceDark : MSToDoColors.msSurface,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: isDark ? MSToDoColors.msBorderDark : MSToDoColors.msBorder,
+              ),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
+            child: TableCalendar(
+              firstDay: DateTime(2020),
+              lastDay: DateTime(2030),
+              focusedDay: _focusedDay,
+              calendarFormat: _calendarFormat,
+              selectedDayPredicate: (day) => _isSameDay(_selectedDay, day),
+              onDaySelected: (selectedDay, focusedDay) {
+                setState(() {
+                  _selectedDay = selectedDay;
+                  _focusedDay = focusedDay;
+                });
+              },
+              onFormatChanged: (format) {
+                setState(() {
+                  _calendarFormat = format;
+                });
+              },
+              onPageChanged: (focusedDay) {
+                _focusedDay = focusedDay;
+              },
+              eventLoader: _getEventsForDay,
+              calendarStyle: CalendarStyle(
+                todayDecoration: BoxDecoration(
+                  border: Border.all(
+                    color: MSToDoColors.msBlue,
+                    width: 2,
                   ),
-                  child: const Icon(
-                    Icons.event,
-                    color: AppColors.accent,
-                    size: 20,
-                  ),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    event.title,
-                    style: TextStyle(
-                      color: context.textPrimaryColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                selectedDecoration: const BoxDecoration(
+                  color: MSToDoColors.msBlue,
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
-            if (event.description != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                event.description!,
-                style: TextStyle(
-                  color: context.textMutedColor,
+                markerDecoration: const BoxDecoration(
+                  color: MSToDoColors.msBlue,
+                  shape: BoxShape.circle,
+                ),
+                markerSizeScale: 0.1,
+                markersMaxCount: 3,
+                weekendTextStyle: TextStyle(
+                  color: MSToDoColors.msTextSecondary,
+                ),
+                defaultTextStyle: TextStyle(
+                  color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                ),
+                outsideTextStyle: TextStyle(
+                  color: MSToDoColors.msTextSecondary.withOpacity(0.5),
+                ),
+                selectedTextStyle: const TextStyle(
+                  color: Colors.white,
+                ),
+                todayTextStyle: TextStyle(
+                  color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                ),
+              ),
+              headerStyle: HeaderStyle(
+                formatButtonVisible: true,
+                titleCentered: true,
+                formatButtonShowsNext: false,
+                titleTextStyle: TextStyle(
+                  color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+                formatButtonTextStyle: TextStyle(
+                  color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                ),
+                leftChevronIcon: Icon(
+                  Icons.chevron_left,
+                  color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                ),
+                rightChevronIcon: Icon(
+                  Icons.chevron_right,
+                  color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                ),
+              ),
+              daysOfWeekStyle: DaysOfWeekStyle(
+                weekdayStyle: TextStyle(
+                  color: MSToDoColors.msTextSecondary,
+                  fontSize: 14,
+                ),
+                weekendStyle: TextStyle(
+                  color: MSToDoColors.msTextSecondary,
                   fontSize: 14,
                 ),
               ),
-            ],
-            const SizedBox(height: 8),
-            Row(
+            ),
+          ),
+
+          // Selected date header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
               children: [
-                Icon(Icons.access_time, color: context.textMutedColor, size: 16),
-                const SizedBox(width: 4),
                 Text(
-                  '${DateFormat('hh:mm a').format(event.startTime)} - ${DateFormat('hh:mm a').format(event.endTime)}',
+                  _selectedDay != null
+                      ? DateFormat('EEEE, MMMM d').format(_selectedDay!)
+                      : 'Select a date',
                   style: TextStyle(
-                    color: context.textMutedColor,
-                    fontSize: 13,
+                    color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (event.location != null) ...[
-                  const SizedBox(width: 16),
-                  Icon(Icons.location_on, color: context.textMutedColor, size: 16),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      event.location!,
-                      style: TextStyle(
-                        color: context.textMutedColor,
-                        fontSize: 13,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                const Spacer(),
+                Text(
+                  '${selectedDayEvents.length} item${selectedDayEvents.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    color: MSToDoColors.msTextSecondary,
+                    fontSize: 14,
                   ),
-                ],
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Events/Tasks list
+          Expanded(
+            child: selectedDayEvents.isEmpty
+                ? _buildEmptyState(isDark)
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: selectedDayEvents.length,
+                    itemBuilder: (context, index) {
+                      final item = selectedDayEvents[index];
+                      if (item is Event) {
+                        return _buildEventItem(item, isDark);
+                      } else if (item is Todo) {
+                        return _buildTodoItem(item, isDark);
+                      }
+                      return const SizedBox();
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildTodoItem(Todo todo) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.surfaceElevatedColor,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: todo.isCompleted ? AppColors.success : context.outlineColor,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.event_available,
+            size: 64,
+            color: MSToDoColors.msTextSecondary.withOpacity(0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No events or tasks',
+            style: TextStyle(
+              color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Add an event for this day',
+            style: TextStyle(
+              color: MSToDoColors.msTextSecondary,
+              fontSize: 14,
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildEventItem(Event event, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? MSToDoColors.msSurfaceDark : MSToDoColors.msSurface,
+        border: Border.all(
+          color: isDark ? MSToDoColors.msBorderDark : MSToDoColors.msBorder,
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.event,
+                color: MSToDoColors.msBlue,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  event.title,
+                  style: TextStyle(
+                    color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (event.description != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              event.description!,
+              style: TextStyle(
+                color: MSToDoColors.msTextSecondary,
+                fontSize: 13,
+              ),
+            ),
+          ],
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.access_time, color: MSToDoColors.msTextSecondary, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                '${DateFormat('hh:mm a').format(event.startTime)} - ${DateFormat('hh:mm a').format(event.endTime)}',
+                style: TextStyle(
+                  color: MSToDoColors.msTextSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTodoItem(Todo todo, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? MSToDoColors.msSurfaceDark : MSToDoColors.msSurface,
+        border: Border.all(
+          color: todo.isCompleted ? MSToDoColors.success : (isDark ? MSToDoColors.msBorderDark : MSToDoColors.msBorder),
+        ),
+        borderRadius: BorderRadius.circular(4),
+      ),
       child: Row(
         children: [
-          Icon(
-            todo.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
-            color: todo.isCompleted ? AppColors.success : AppColors.accent,
+          Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: todo.isCompleted ? MSToDoColors.success : MSToDoColors.msTextSecondary,
+                width: 2,
+              ),
+              color: todo.isCompleted ? MSToDoColors.success : null,
+            ),
+            child: todo.isCompleted
+                ? const Icon(Icons.check, color: Colors.white, size: 14)
+                : null,
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  todo.title,
-                  style: TextStyle(
-                    color: context.textPrimaryColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      'Task',
-                      style: TextStyle(
-                        color: context.textMutedColor,
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (todo.priority == Priority.high) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.priorityHigh.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'HIGH',
-                          style: TextStyle(
-                            color: AppColors.priorityHigh,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+            child: Text(
+              todo.title,
+              style: TextStyle(
+                color: isDark ? MSToDoColors.msTextPrimaryDark : MSToDoColors.msTextPrimary,
+                fontSize: 15,
+                decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+              ),
             ),
           ),
         ],

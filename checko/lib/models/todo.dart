@@ -147,6 +147,58 @@ class Todo {
     );
   }
 
+  // For local JSON storage
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'listId': listId,
+      'title': title,
+      'note': note,
+      'dueDate': dueDate?.toIso8601String(),
+      'priority': priority.index,
+      'isCompleted': isCompleted,
+      'isFavorite': isFavorite,
+      'subtasks': subtasks.map((s) => s.toMap()).toList(),
+      'tags': tags.map((t) => t.toMap()).toList(),
+      'recurrence': recurrence.toMap(),
+      'completedAt': completedAt?.toIso8601String(),
+      'createdAt': createdAt.toIso8601String(),
+      'order': order,
+      'pomodoroSessions': pomodoroSessions,
+    };
+  }
+
+  factory Todo.fromJson(Map<String, dynamic> json) {
+    final subtasksList = json['subtasks'] as List<dynamic>? ?? [];
+    final tagsList = json['tags'] as List<dynamic>? ?? [];
+
+    return Todo(
+      id: json['id'] as String,
+      listId: json['listId'] as String,
+      title: json['title'] as String,
+      note: json['note'] as String?,
+      dueDate: json['dueDate'] != null
+          ? DateTime.parse(json['dueDate'] as String)
+          : null,
+      priority: Priority.values[json['priority'] as int? ?? 1],
+      isCompleted: json['isCompleted'] as bool? ?? false,
+      isFavorite: json['isFavorite'] as bool? ?? false,
+      subtasks: subtasksList
+          .map((s) => SubTask.fromMap(s as Map<String, dynamic>))
+          .toList(),
+      tags: tagsList.map((t) => Tag.fromMap(t as Map<String, dynamic>)).toList(),
+      recurrence: RecurrenceRule.fromMap(json['recurrence'] as Map<String, dynamic>?),
+      completedAt: json['completedAt'] != null
+          ? DateTime.parse(json['completedAt'] as String)
+          : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
+      order: json['order'] as int? ?? 0,
+      pomodoroSessions: json['pomodoroSessions'] as int? ?? 0,
+    );
+  }
+
   Todo copyWith({
     String? id,
     String? listId,

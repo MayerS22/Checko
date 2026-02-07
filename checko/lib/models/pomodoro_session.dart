@@ -53,6 +53,53 @@ class PomodoroSession {
       completed: data['completed'] as bool? ?? false,
     );
   }
+
+  // For local JSON storage
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'todoId': todoId,
+      'todoTitle': todoTitle,
+      'startTime': startTime.toIso8601String(),
+      'endTime': endTime?.toIso8601String(),
+      'durationMinutes': durationMinutes,
+      'completed': completed,
+    };
+  }
+
+  factory PomodoroSession.fromJson(Map<String, dynamic> json) {
+    return PomodoroSession(
+      id: json['id'] as String,
+      todoId: json['todoId'] as String?,
+      todoTitle: json['todoTitle'] as String?,
+      startTime: DateTime.parse(json['startTime'] as String),
+      endTime: json['endTime'] != null
+          ? DateTime.parse(json['endTime'] as String)
+          : null,
+      durationMinutes: json['durationMinutes'] as int,
+      completed: json['completed'] as bool? ?? false,
+    );
+  }
+
+  PomodoroSession copyWith({
+    String? id,
+    String? todoId,
+    String? todoTitle,
+    DateTime? startTime,
+    DateTime? endTime,
+    int? durationMinutes,
+    bool? completed,
+  }) {
+    return PomodoroSession(
+      id: id ?? this.id,
+      todoId: todoId ?? this.todoId,
+      todoTitle: todoTitle ?? this.todoTitle,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      durationMinutes: durationMinutes ?? this.durationMinutes,
+      completed: completed ?? this.completed,
+    );
+  }
 }
 
 

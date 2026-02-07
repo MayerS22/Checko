@@ -44,6 +44,35 @@ class Tag {
     );
   }
 
+  // For local JSON storage
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'color': color,
+    };
+  }
+
+  factory Tag.fromJson(Map<String, dynamic> json) {
+    return Tag(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      color: json['color'] as int? ?? 0xFF7c5dfa,
+    );
+  }
+
+  Tag copyWith({
+    String? id,
+    String? name,
+    int? color,
+  }) {
+    return Tag(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      color: color ?? this.color,
+    );
+  }
+
   // Predefined tags for quick use
   static List<Tag> get defaultTags => [
     Tag(id: 'work', name: 'Work', color: 0xFF2196F3),

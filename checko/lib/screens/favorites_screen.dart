@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/todo.dart';
 import '../models/todo_list.dart';
-import '../database/firestore_service.dart';
-import '../providers/user_provider.dart';
+import '../providers/data_provider.dart';
 import '../theme/app_colors.dart';
 
 class FavoritesScreen extends StatefulWidget {
@@ -26,8 +25,11 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    final favorites = await FirestoreService.instance.readFavoriteTodos();
-    final lists = await FirestoreService.instance.readAllTodoLists();
+    final dataProvider = context.read<DataProvider>();
+    await dataProvider.initialize();
+
+    final favorites = dataProvider.getFavoriteTodos();
+    final lists = dataProvider.todoLists;
     if (!mounted) return;
     setState(() {
       _favorites = favorites;
@@ -40,12 +42,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     setState(() {
       todo.toggleComplete();
     });
-    await FirestoreService.instance.updateTodo(todo);
-    
+    await context.read<DataProvider>().updateTodo(todo);
+
     if (!mounted) return;
     if (todo.isCompleted) {
-      context.read<UserProvider>().incrementTasksCompleted();
-      context.read<UserProvider>().updateStreak();
+      // TODO: Add user stats to DataProvider
+      // context.read<DataProvider>().incrementTasksCompleted();
+      // context.read<DataProvider>().updateStreak();
     }
   }
 
@@ -53,7 +56,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     setState(() {
       todo.toggleFavorite();
     });
-    await FirestoreService.instance.updateTodo(todo);
+    await context.read<DataProvider>().updateTodo(todo);
     
     // Remove from list if unfavorited
     if (!todo.isFavorite) {
@@ -81,7 +84,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
+    final dataProvider = context.watch<DataProvider>();
 
     return Scaffold(
       backgroundColor: context.backgroundColor,
@@ -110,7 +113,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Welcome ${userProvider.username}',
+                        'Welcome ${dataProvider.username ?? "User"}',
                         style: TextStyle(
                           color: context.textPrimaryColor,
                           fontSize: 22,

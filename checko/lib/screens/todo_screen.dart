@@ -6,8 +6,7 @@ import '../models/todo_list.dart';
 import '../models/subtask.dart';
 import '../models/tag.dart';
 import '../models/recurrence.dart';
-import '../database/firestore_service.dart';
-import '../providers/user_provider.dart';
+import '../providers/data_provider.dart';
 import '../theme/app_colors.dart';
 import 'pomodoro_screen.dart';
 
@@ -70,7 +69,7 @@ class _TodoScreenState extends State<TodoScreen> {
     );
 
     // Persist first to get the Firestore-generated ID so later edits/deletes work
-    final createdTodo = await FirestoreService.instance.createTodo(newTodo);
+    final createdTodo = await context.read<DataProvider>().createTodo(newTodo);
 
     setState(() {
       _todos.add(createdTodo);
@@ -81,7 +80,7 @@ class _TodoScreenState extends State<TodoScreen> {
   }
 
   Future<void> _deleteTodo(String id) async {
-    await FirestoreService.instance.deleteTodo(id);
+    await context.read<DataProvider>().deleteTodo(id);
 
     setState(() {
       _todos.removeWhere((todo) => todo.id == id);
@@ -97,14 +96,15 @@ class _TodoScreenState extends State<TodoScreen> {
       todo.toggleComplete();
     });
 
-    await FirestoreService.instance.updateTodo(todo);
+    await context.read<DataProvider>().updateTodo(todo);
     widget.onTodosChanged(_todos);
 
     // Update user stats
     if (!wasCompleted && todo.isCompleted) {
       if (mounted) {
-        context.read<UserProvider>().incrementTasksCompleted();
-        context.read<UserProvider>().updateStreak();
+        // TODO: Add user stats to DataProvider
+        // context.read<DataProvider>().incrementTasksCompleted();
+        // context.read<DataProvider>().updateStreak();
       }
       
       // Handle recurring tasks
@@ -118,7 +118,7 @@ class _TodoScreenState extends State<TodoScreen> {
             completedAt: null,
             order: _todos.length,
           );
-          final createdTodo = await FirestoreService.instance.createTodo(newTodo);
+          final createdTodo = await context.read<DataProvider>().createTodo(newTodo);
           setState(() {
             _todos.add(createdTodo);
           });
@@ -135,7 +135,7 @@ class _TodoScreenState extends State<TodoScreen> {
     });
 
     final todo = _todos.firstWhere((todo) => todo.id == id);
-    await FirestoreService.instance.updateTodo(todo);
+    await context.read<DataProvider>().updateTodo(todo);
     widget.onTodosChanged(_todos);
   }
 
@@ -163,9 +163,9 @@ class _TodoScreenState extends State<TodoScreen> {
       }
     });
 
-    // Save to Firestore
+    // Save to DataProvider
     for (var todo in visibleTodos) {
-      await FirestoreService.instance.updateTodoOrder(todo.id, todo.order);
+      await context.read<DataProvider>().updateTodo(todo);
     }
     
     widget.onTodosChanged(_todos);
@@ -179,7 +179,7 @@ class _TodoScreenState extends State<TodoScreen> {
       builder: (context) => _TodoDetailSheet(
         todo: todo,
         onUpdate: (updatedTodo) async {
-          await FirestoreService.instance.updateTodo(updatedTodo);
+          await context.read<DataProvider>().updateTodo(updatedTodo);
           setState(() {
             final index = _todos.indexWhere((t) => t.id == updatedTodo.id);
             if (index != -1) {
@@ -192,7 +192,7 @@ class _TodoScreenState extends State<TodoScreen> {
     );
     
     if (result != null) {
-      await FirestoreService.instance.updateTodo(result);
+      await context.read<DataProvider>().updateTodo(result);
       setState(() {
         final index = _todos.indexWhere((t) => t.id == result.id);
         if (index != -1) {
@@ -212,7 +212,7 @@ class _TodoScreenState extends State<TodoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
+    final dataProvider = context.watch<DataProvider>();
     final completedCount = _completedCount;
     final totalCount = _todos.length;
     final visibleTodos = _visibleTodos;
@@ -272,7 +272,7 @@ class _TodoScreenState extends State<TodoScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Welcome ${userProvider.username}',
+                            'Welcome ${dataProvider.username ?? "User"}',
                             style: TextStyle(
                               color: context.textPrimaryColor,
                               fontSize: 20,

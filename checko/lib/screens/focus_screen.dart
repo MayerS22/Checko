@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/todo.dart';
 import '../models/todo_list.dart';
-import '../database/firestore_service.dart';
-import '../providers/user_provider.dart';
+import '../providers/data_provider.dart';
 import '../theme/app_colors.dart';
 import 'pomodoro_screen.dart';
 
@@ -29,9 +28,12 @@ class _FocusScreenState extends State<FocusScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
-    final allTodos = await FirestoreService.instance.readAllTodos();
-    final lists = await FirestoreService.instance.readAllTodoLists();
+
+    final dataProvider = context.read<DataProvider>();
+    await dataProvider.initialize();
+
+    final allTodos = dataProvider.todos;
+    final lists = dataProvider.todoLists;
     
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -69,12 +71,13 @@ class _FocusScreenState extends State<FocusScreen> {
     setState(() {
       todo.toggleComplete();
     });
-    await FirestoreService.instance.updateTodo(todo);
-    
+    await context.read<DataProvider>().updateTodo(todo);
+
     if (!mounted) return;
     if (todo.isCompleted) {
-      context.read<UserProvider>().incrementTasksCompleted();
-      context.read<UserProvider>().updateStreak();
+      // TODO: Add user stats to DataProvider
+      // context.read<DataProvider>().incrementTasksCompleted();
+      // context.read<DataProvider>().updateStreak();
     }
   }
 
@@ -82,7 +85,7 @@ class _FocusScreenState extends State<FocusScreen> {
     setState(() {
       todo.toggleFavorite();
     });
-    await FirestoreService.instance.updateTodo(todo);
+    await context.read<DataProvider>().updateTodo(todo);
   }
 
   String _getListName(String listId) {
@@ -106,7 +109,7 @@ class _FocusScreenState extends State<FocusScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
+    final dataProvider = context.watch<DataProvider>();
     final now = DateTime.now();
     final greeting = _getGreeting(now.hour);
     final progress = _todayTodos.isEmpty ? 0.0 : _completedCount / _todayTodos.length;
@@ -165,7 +168,7 @@ class _FocusScreenState extends State<FocusScreen> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '$greeting, ${userProvider.username}!',
+                        '$greeting, ${dataProvider.username ?? "User"}!',
                         style: TextStyle(
                           color: context.textPrimaryColor,
                           fontSize: 28,

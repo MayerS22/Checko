@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/todo.dart';
 import '../models/todo_list.dart';
-import '../database/firestore_service.dart';
-import '../providers/user_provider.dart';
+import '../providers/data_provider.dart';
 import 'todo_screen.dart';
 import '../theme/app_colors.dart';
 
@@ -40,14 +39,14 @@ class _ListsScreenState extends State<ListsScreen> {
       _isLoading = true;
     });
 
-    final lists = await FirestoreService.instance.readAllTodoLists();
-    final todos = await FirestoreService.instance.readAllTodos();
+    final dataProvider = context.read<DataProvider>();
+    await dataProvider.initialize();
 
     setState(() {
       _lists.clear();
-      _lists.addAll(lists);
+      _lists.addAll(dataProvider.todoLists);
       _allTodos.clear();
-      _allTodos.addAll(todos);
+      _allTodos.addAll(dataProvider.todos);
       _isLoading = false;
     });
 
@@ -97,7 +96,7 @@ class _ListsScreenState extends State<ListsScreen> {
           description: listData['description'] as String,
           color: listData['color'] as int,
         );
-        final created = await FirestoreService.instance.createTodoList(newList);
+        final created = await context.read<DataProvider>().createTodoList(newList);
         setState(() {
           _lists.add(created);
         });
@@ -123,8 +122,8 @@ class _ListsScreenState extends State<ListsScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: context.isDarkMode
-              ? AppColors.panel
-              : AppColors.lightPanel,
+              ? AppColors.panelDark
+              : AppColors.panelLight,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -349,7 +348,7 @@ class _ListsScreenState extends State<ListsScreen> {
     );
 
     if (result != null) {
-      final created = await FirestoreService.instance.createTodo(result);
+      final created = await context.read<DataProvider>().createTodo(result);
       setState(() {
         _allTodos.add(created);
       });
@@ -407,7 +406,7 @@ class _ListsScreenState extends State<ListsScreen> {
 
       if (isOverdue && todo.listId != todoList.id) {
         final moved = todo.copyWith(listId: todoList.id);
-        await FirestoreService.instance.updateTodo(moved);
+        await context.read<DataProvider>().updateTodo(moved);
         _allTodos[i] = moved;
         updated = true;
       }
@@ -462,8 +461,8 @@ class _ListsScreenState extends State<ListsScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: context.isDarkMode
-              ? AppColors.panel
-              : AppColors.lightPanel,
+              ? AppColors.panelDark
+              : AppColors.panelLight,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -594,7 +593,7 @@ class _ListsScreenState extends State<ListsScreen> {
     );
 
     if (result != null) {
-      await FirestoreService.instance.createTodoList(result);
+      await context.read<DataProvider>().createTodoList(result);
       setState(() {
         _lists.add(result);
       });
@@ -622,8 +621,8 @@ class _ListsScreenState extends State<ListsScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: context.isDarkMode
-              ? AppColors.panel
-              : AppColors.lightPanel,
+              ? AppColors.panelDark
+              : AppColors.panelLight,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
           ),
@@ -754,7 +753,7 @@ class _ListsScreenState extends State<ListsScreen> {
     );
 
     if (result != null) {
-      await FirestoreService.instance.updateTodoList(result);
+      await context.read<DataProvider>().updateTodoList(result);
       setState(() {
         final index = _lists.indexWhere((l) => l.id == result.id);
         if (index != -1) {
@@ -769,8 +768,8 @@ class _ListsScreenState extends State<ListsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: context.isDarkMode
-            ? AppColors.panel
-            : AppColors.lightPanel,
+            ? AppColors.panelDark
+            : AppColors.panelLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Text(
           'Delete List',
@@ -812,7 +811,7 @@ class _ListsScreenState extends State<ListsScreen> {
   }
 
   Future<void> _deleteList(String listId) async {
-    await FirestoreService.instance.deleteTodoList(listId);
+    await context.read<DataProvider>().deleteTodoList(listId);
     setState(() {
       _lists.removeWhere((list) => list.id == listId);
       _allTodos.removeWhere((todo) => todo.listId == listId);
@@ -827,7 +826,7 @@ class _ListsScreenState extends State<ListsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userProvider = context.watch<UserProvider>();
+    final dataProvider = context.watch<DataProvider>();
 
     if (_isLoading) {
       return Scaffold(
@@ -866,7 +865,7 @@ class _ListsScreenState extends State<ListsScreen> {
                         const Color(0xff111c34),
                       ]
                     : [
-                        AppColors.lightBackground,
+                        AppColors.backgroundLight,
                         AppColors.accent.withValues(alpha: 0.08),
                       ],
               ),
@@ -901,7 +900,7 @@ class _ListsScreenState extends State<ListsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Hello, ${userProvider.username} 👋',
+                                  'Hello, ${dataProvider.username ?? "User"} 👋',
                                   style: TextStyle(
                                     color: context.textPrimaryColor,
                                     fontSize: 24,
@@ -940,7 +939,7 @@ class _ListsScreenState extends State<ListsScreen> {
                                     const Text('🔥', style: TextStyle(fontSize: 16)),
                                     const SizedBox(width: 6),
                                     Text(
-                                      '${userProvider.currentStreak}',
+                                      '0', // TODO: Add streak tracking to DataProvider
                                       style: TextStyle(
                                         color: context.textPrimaryColor,
                                         fontWeight: FontWeight.bold,

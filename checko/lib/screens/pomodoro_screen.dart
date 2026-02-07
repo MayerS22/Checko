@@ -4,8 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/todo.dart';
 import '../models/pomodoro_session.dart';
-import '../database/firestore_service.dart';
-import '../providers/user_provider.dart';
+import '../providers/data_provider.dart';
 import '../theme/app_colors.dart';
 
 class PomodoroScreen extends StatefulWidget {
@@ -49,12 +48,13 @@ class _PomodoroScreenState extends State<PomodoroScreen> with TickerProviderStat
   }
 
   void _loadSettings() {
-    final userProvider = context.read<UserProvider>();
+    // TODO: Add settings to DataProvider
+    // final dataProvider = context.read<DataProvider>();
     setState(() {
-      _workDuration = userProvider.settings?.pomodoroWorkDuration ?? 25;
-      _breakDuration = userProvider.settings?.pomodoroBreakDuration ?? 5;
-      _longBreakDuration = userProvider.settings?.pomodoroLongBreakDuration ?? 15;
-      _sessionsBeforeLongBreak = userProvider.settings?.pomodoroSessionsBeforeLongBreak ?? 4;
+      _workDuration = 25; // dataProvider.settings?.pomodoroWorkDuration ?? 25;
+      _breakDuration = 5; // dataProvider.settings?.pomodoroBreakDuration ?? 5;
+      _longBreakDuration = 15; // dataProvider.settings?.pomodoroLongBreakDuration ?? 15;
+      _sessionsBeforeLongBreak = 4; // dataProvider.settings?.pomodoroSessionsBeforeLongBreak ?? 4;
       _timeRemaining = _workDuration * 60;
     });
   }
@@ -124,18 +124,19 @@ class _PomodoroScreenState extends State<PomodoroScreen> with TickerProviderStat
       completed: true,
     );
     
-    await FirestoreService.instance.createPomodoroSession(session);
-    
+    await context.read<DataProvider>().createPomodoroSession(session);
+
     // Update todo pomodoro count if linked
     if (widget.linkedTodo != null) {
       widget.linkedTodo!.pomodoroSessions++;
-      await FirestoreService.instance.updateTodo(widget.linkedTodo!);
+      await context.read<DataProvider>().updateTodo(widget.linkedTodo!);
     }
 
     // Check for achievements
-    final totalSessions = await FirestoreService.instance.getTotalPomodoroSessions();
+    // TODO: Add achievements to DataProvider
+    // final totalSessions = await context.read<DataProvider>().getTotalPomodoroSessions();
     if (mounted) {
-      context.read<UserProvider>().addPomodoroAchievement(totalSessions);
+      // context.read<DataProvider>().addPomodoroAchievement(totalSessions);
     }
   }
 
@@ -144,7 +145,7 @@ class _PomodoroScreenState extends State<PomodoroScreen> with TickerProviderStat
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: context.isDarkMode ? AppColors.panel : AppColors.lightPanel,
+        backgroundColor: context.isDarkMode ? AppColors.panelDark : AppColors.panelLight,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(
           children: [
@@ -274,8 +275,8 @@ class _PomodoroScreenState extends State<PomodoroScreen> with TickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    // Watch user provider for settings
-    context.watch<UserProvider>();
+    // Watch data provider for settings
+    context.watch<DataProvider>();
 
     return Scaffold(
       backgroundColor: context.backgroundColor,

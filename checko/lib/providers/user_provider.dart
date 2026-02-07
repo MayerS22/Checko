@@ -130,13 +130,13 @@ class UserProvider extends ChangeNotifier {
 
   Future<void> incrementTasksCompleted() async {
     if (_settings == null) return;
-    
+
     final newTotal = _settings!.totalTasksCompleted + 1;
     _settings = _settings!.copyWith(totalTasksCompleted: newTotal);
-    
+
     // Check for achievements
     await _checkAndUnlockAchievements();
-    
+
     await FirestoreService.instance.updateUserSettings(_settings!);
     notifyListeners();
   }
@@ -256,5 +256,3 @@ class UserProvider extends ChangeNotifier {
     await _loadSettings();
   }
 }
-
-

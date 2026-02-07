@@ -13,6 +13,18 @@ class SubTask {
     isCompleted = !isCompleted;
   }
 
+  SubTask copyWith({
+    String? id,
+    String? title,
+    bool? isCompleted,
+  }) {
+    return SubTask(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      isCompleted: isCompleted ?? this.isCompleted,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

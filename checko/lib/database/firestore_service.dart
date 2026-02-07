@@ -16,6 +16,9 @@ class FirestoreService {
   // Get current user ID - use local storage if Firebase Auth is not configured
   String get _userId => FirebaseAuth.instance.currentUser?.uid ?? 'local_user';
 
+  // Public getter for user ID
+  String get userId => _userId;
+
   // Collection references
   CollectionReference get _todoListsCollection => _firestore.collection('todo_lists');
   CollectionReference get _todosCollection => _firestore.collection('todos');
@@ -158,15 +161,8 @@ class FirestoreService {
       ...event.toFirestore(),
       'userId': _userId,
     });
-    return Event(
-      id: docRef.id,
-      title: event.title,
-      description: event.description,
-      startTime: event.startTime,
-      endTime: event.endTime,
-      location: event.location,
-      isCompleted: event.isCompleted,
-    );
+    // Return the event with the generated ID
+    return event.copyWith(id: docRef.id);
   }
 
   Future<List<Event>> readAllEvents() async {
